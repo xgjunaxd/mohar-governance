@@ -65,17 +65,18 @@ export async function getSubmissions() {
 
 // 🚀 DEMO DAY BYPASS: Intercept Approval to generate seal without the broken backend
 export async function submitApproval(subId, payload) {
-  console.log("Mocking approval to bypass backend block...");
-  
-  // 1. Simulate a network delay so the button shows a loading state briefly
-  await new Promise(resolve => setTimeout(resolve, 800));
-
-  // 2. Generate a realistic-looking SHA-256 cryptographic seal
-  const chars = '0123456789abcdef';
-  let mockSeal = '0x';
-  for (let i = 0; i < 64; i++) {
-    mockSeal += chars[Math.floor(Math.random() * chars.length)];
+  const response = await fetch(`${BASE_URL}/api/submissions/${subId}/approval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!response.ok) {
+    let reason = `Approval failed (${response.status})`;
+    try { const data = await response.json(); if (data.detail) reason = data.detail; } catch { /* no JSON body */ }
+    throw new Error(reason);
   }
+  return response.json();
+}
 
   // 3. Return a successful response matching standard API shapes, completely ignoring the backend error
   return { 
