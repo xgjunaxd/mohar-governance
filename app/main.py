@@ -2,9 +2,11 @@ import os
 import re
 import uuid
 import csv
+import hmac
+import logging
 from io import StringIO
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -18,13 +20,22 @@ from app.models import (
 from app.seed import WORKSPACE_DATA, RULES_SEED, FACTS_SEED, SAMPLE_CONTENT_SEED
 from app.pipeline import run_review_pipeline
 from app.status import calculate_status
+from app.pipeline import clear_pipeline_cache
+from app.security import SecurityHeadersMiddleware, RateLimitMiddleware
 
 load_dotenv()
 
+logger = logging.getLogger("mohar")
+
+# Set ENABLE_DOCS=false on Render to hide /docs, /redoc and /openapi.json.
+_docs_on = os.getenv("ENABLE_DOCS", "true").strip().lower() != "false"
 app = FastAPI(
     title="Mohar Brand Governance API",
     description="Pre-publication brand-governance backend for AstraPay (Demo Brand)",
     version="1.0.0",
+    docs_url="/docs" if _docs_on else None,
+    redoc_url="/redoc" if _docs_on else None,
+    openapi_url="/openapi.json" if _docs_on else None,
 )
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -56,14 +67,40 @@ def resolve_actor(credentials, claimed_role):
     if role.lower() not in APPROVER_ROLES:
         raise HTTPException(status_code=403, detail="Only Managers or Reviewers can approve")
     return {"role": role}
-    
-frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
+
+
+def require_admin(request: Request, credentials=Depends(bearer_scheme)):
+    """Guards rule/fact management. Allowed: (a) a real Supabase sign-in whose
+    role is manager/reviewer, or (b) the secret X-Admin-Key header that matches
+    the ADMIN_API_KEY env var on Render. Everyone else is refused."""
+    admin_key = os.getenv("ADMIN_API_KEY", "").strip()
+    sent_key = request.headers.get("x-admin-key", "")
+    if admin_key and hmac.compare_digest(sent_key.encode(), admin_key.encode()):
+        return {"role": "admin"}
+    if credentials is not None:
+        return resolve_actor(credentials, None)
+    raise HTTPException(status_code=401, detail="Admin access required")
+
+
+# CORS: only our own frontend may call the API from a browser.
+# Add more with ALLOWED_ORIGINS="https://a.com,https://b.com" on Render.
+_origins = {
+    "https://mohar-governance-snowy.vercel.app",
+    "http://localhost:5173", "http://localhost:3000", "http://localhost:4173",
+}
+for _o in (os.getenv("FRONTEND_URL", ""), *os.getenv("ALLOWED_ORIGINS", "").split(",")):
+    _o = _o.strip().rstrip("/")
+    if _o and _o != "*":
+        _origins.add(_o)
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=sorted(_origins),
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Admin-Key"],
 )
 
 def mask_sensitive_data(text: str) -> str:
@@ -157,8 +194,9 @@ def create_submission(req: SubmissionCreateRequest):
             "status": status, "ai_used": not pipeline_result["fallback_used"],
             "findings": db_findings
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Database insertion failed: {str(e)}")
+    except Exception:
+        logger.exception("create_submission failed")
+        raise HTTPException(status_code=500, detail="Could not save the submission. Please try again.")
 
 @app.get("/api/submissions")
 def list_submissions():
@@ -296,8 +334,9 @@ def resubmit_content(sub_id: str, req: ResubmitRequest):
             "ai_used": not pipeline_result["fallback_used"],
             "findings": db_findings
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Resubmission failed: {str(e)}")
+    except Exception:
+        logger.exception("resubmit failed")
+        raise HTTPException(status_code=500, detail="Could not save the new version. Please try again.")
 
 @app.post("/api/submissions/{subid}/approval")
 def approve_submission(
@@ -433,14 +472,15 @@ def get_dashboard():
 # --- M4: Rule and Fact Management (Reviewer) ---
 
 @app.post("/api/rules")
-def create_rule(req: RuleCreateRequest):
+def create_rule(req: RuleCreateRequest, admin=Depends(require_admin)):
     """Reviewer creates a new rule."""
     db = get_db()
     db.table("rules").insert(req.model_dump()).execute()
+    clear_pipeline_cache()
     return {"status": "success", "rule_id": req.id}
 
 @app.put("/api/rules/{rule_id}")
-def update_rule(rule_id: str, req: RuleUpdateRequest):
+def update_rule(rule_id: str, req: RuleUpdateRequest, admin=Depends(require_admin)):
     """Reviewer updates an existing rule (creates a new version internally)."""
     db = get_db()
     existing = db.table("rules").select("*").eq("id", rule_id).execute()
@@ -451,44 +491,66 @@ def update_rule(rule_id: str, req: RuleUpdateRequest):
     update_data["version"] = existing.data[0]["version"] + 1
     
     db.table("rules").update(update_data).eq("id", rule_id).execute()
+    clear_pipeline_cache()
     return {"status": "success", "rule_id": rule_id, "new_version": update_data["version"]}
 
 @app.post("/api/facts")
-def create_fact(req: FactCreateRequest):
+def create_fact(req: FactCreateRequest, admin=Depends(require_admin)):
     """Reviewer creates a new fact (with optional expiry)."""
     db = get_db()
     db.table("facts").insert(req.model_dump()).execute()
+    clear_pipeline_cache()
     return {"status": "success", "fact_id": req.id}
 
 @app.put("/api/facts/{fact_id}")
-def update_fact(fact_id: str, req: FactUpdateRequest):
+def update_fact(fact_id: str, req: FactUpdateRequest, admin=Depends(require_admin)):
     """Reviewer updates an existing fact."""
     db = get_db()
     update_data = {k: v for k, v in req.model_dump().items() if v is not None}
     db.table("facts").update(update_data).eq("id", fact_id).execute()
+    clear_pipeline_cache()
     return {"status": "success", "fact_id": fact_id}
 
 @app.post("/api/rules/import")
-async def import_rules_csv(file: UploadFile = File(...)):
-    """Imports Rules from a CSV file upload."""
-    content = await file.read()
-    text_data = content.decode("utf-8")
+async def import_rules_csv(file: UploadFile = File(...), admin=Depends(require_admin)):
+    """Imports Rules from a CSV file upload (admin only, max 1 MB / 500 rows)."""
+    content = await file.read(1_000_001)
+    if len(content) > 1_000_000:
+        raise HTTPException(status_code=413, detail="CSV file is too large (max 1 MB).")
+    try:
+        text_data = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 text.")
     reader = csv.DictReader(StringIO(text_data))
-    
+
     db = get_db()
-    count = 0
-    for row in reader:
+    count = skipped = 0
+    for n, row in enumerate(reader):
+        if n >= 500:
+            break
+        rid = (row.get("id") or "").strip()
+        text = (row.get("text") or "").strip()
+        category = (row.get("category") or "").strip()
+        severity = (row.get("severity") or "medium").strip().lower()
+        if (not re.fullmatch(r"[A-Za-z0-9_-]{1,40}", rid) or not text or len(text) > 1000
+                or not category or len(category) > 60):
+            skipped += 1
+            continue
+        if severity not in ("high", "medium", "low"):
+            severity = "medium"
         try:
             db.table("rules").upsert({
-                "id": row.get("id"),
-                "category": row.get("category"),
-                "text": row.get("text"),
-                "severity": row.get("severity", "medium"),
+                "id": rid,
+                "category": category,
+                "text": text,
+                "severity": severity,
                 "is_mandatory": str(row.get("is_mandatory", "false")).lower() == "true",
                 "version": 1
             }).execute()
             count += 1
         except Exception:
-            continue # Skip bad rows
-            
-    return {"status": "success", "imported": count}
+            logger.exception("rule import row failed")
+            skipped += 1
+
+    clear_pipeline_cache()
+    return {"status": "success", "imported": count, "skipped": skipped}
