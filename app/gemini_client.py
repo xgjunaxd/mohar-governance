@@ -11,10 +11,13 @@ Gemini API client for Mohar.
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import BaseModel, Field, TypeAdapter, ValidationError
+
+logger = logging.getLogger("mohar.gemini")
 
 # Exact system prompt following MASTER CONTEXT & AI-2 specification
 SYSTEM_PROMPT = """You are a senior brand governance reviewer for AstraPay (an Indian fintech and UPI app).
@@ -165,6 +168,7 @@ def analyze_with_gemini(
     model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 
     if not api_key:
+        logger.warning("Gemini skipped: GEMINI_API_KEY is not set")
         return (
             [],
             True,
@@ -206,10 +210,14 @@ def analyze_with_gemini(
 
             validated_models = FINDING_LIST_ADAPTER.validate_python(parsed_data)
             findings = [item.model_dump() for item in validated_models]
+            logger.info("Gemini OK (model=%s, attempt=%d): %d finding(s)", model_name, attempt + 1, len(findings))
             return findings, False, None
 
         except (json.JSONDecodeError, ValidationError, Exception) as exc:
             last_error = f"{type(exc).__name__}: {exc}"
+            # Log WHY it failed (key redacted) so problems are visible in Render logs.
+            logger.warning("Gemini attempt %d failed (model=%s): %s", attempt + 1, model_name,
+                           last_error.replace(api_key, "***")[:300])
 
     return (
         [],
