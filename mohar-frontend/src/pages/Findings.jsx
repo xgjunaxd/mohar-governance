@@ -38,22 +38,13 @@ export default function Findings() {
     try { await resubmitPost(id, editorText); await loadData(true); } catch (err) { alert(err.message); } finally { setResubmitting(false); }
   };
 
-  // Bug 2 Fix: Idempotent text replacements to stop appending duplicates
   const handleAcceptFix = async (finding, fixText) => {
-    // Only apply the fix if the flagged text is still in the editor.
     if (!canApplyFix(editorText, finding.excerpt)) {
       alert('The flagged text has changed since the last analysis. Click "Save Edits & Re-Analyze" first, then apply the fix.');
       return;
     }
-    // Ask the server first; change the editor only if it accepted the decision.
     const ok = await handleDecision(finding.id, 'accept');
     if (ok) setEditorText((prev) => applyFixToText(prev, finding.excerpt, fixText));
-  };
-
-    setEditorText(updatedText);
-    
-    // Record the decision in the backend
-    await handleDecision(finding.id, 'accept', null, updatedText);
   };
 
   if (loading || !data) return <main><div className="glass hero sheen"><h2>Loading analysis...</h2></div></main>;
@@ -103,21 +94,16 @@ export default function Findings() {
               </p>
               <p style={{marginBottom: '16px', fontSize: '14px', color: 'var(--text)'}}>{f.explanation}</p>
               
-              {f.decision === 'pending' && currentRole === 'Creator' && (
+              {f.decision === 'pending' && (
                 <div style={{marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px'}}>
                   <div className="label" style={{marginBottom: '10px'}}>Suggested Fixes</div>
                   <div style={{display: 'grid', gap: '10px'}}>
-                    
-                    {/* Replaced inline replace with handleAcceptFix */}
                     <button onClick={() => handleAcceptFix(f, f.fix_1)} className="btn" style={{justifyContent: 'flex-start', textAlign:'left', height: 'auto', padding: '12px'}}>
                       <strong>Option 1:</strong> <span style={{marginLeft: '6px', fontWeight: 'normal', color: 'var(--text-2)'}}>{f.fix_1}</span>
                     </button>
-                    
-                    {/* Replaced inline replace with handleAcceptFix */}
                     <button onClick={() => handleAcceptFix(f, f.fix_2)} className="btn" style={{justifyContent: 'flex-start', textAlign:'left', height: 'auto', padding: '12px'}}>
                       <strong>Option 2:</strong> <span style={{marginLeft: '6px', fontWeight: 'normal', color: 'var(--text-2)'}}>{f.fix_2}</span>
                     </button>
-                    
                     <div className="row" style={{marginTop: '6px'}}>
                        <button onClick={() => { const r = prompt("Reason for rejection?"); if(r) handleDecision(f.id, 'reject', r); }} className="btn warn" style={{width: '100%'}}>Reject Finding</button>
                     </div>

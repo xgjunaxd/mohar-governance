@@ -1,0 +1,31 @@
+sample_id,expected_issues,detected_issues,correct,missed,false_alarms,evidence_valid_count,notes
+S-001,CL-001;DS-001;F-008,CL-001;DS-001;F-008,3,0,0,3,Status: blocked
+S-002,FC-002;CL-003;F-004,CL-003;F-004;TN-002,2,1,1,3,Status: blocked
+S-003,CL-002,CL-002,1,0,0,2,Status: needs_review
+S-004,TN-001;TN-002;TM-001;TM-003,TM-001;TM-003;TN-001;TN-002,4,0,0,6,Status: blocked
+S-005,FC-001;F-001;F-002;F-006,F-001;F-002;F-006,3,1,0,3,Status: blocked
+S-006,TM-002,TM-002,1,0,0,2,Status: needs_review
+S-007,CL-003;F-003,CL-003,1,1,0,1,Status: needs_review
+S-008,TM-001;FC-001;F-005,FC-001;TM-001,2,1,0,2,Status: blocked
+S-009,TM-003;CL-003,CL-003;TM-003,2,0,0,3,Status: blocked
+S-010,FC-001;F-007;F-009,FC-001,1,2,0,2,Status: blocked
+S-011,CL-001;FC-001;DS-001;F-008,"CL-001;DS-001;FC-001, F-008",2,2,1,2,Status: blocked
+S-012,TN-001;TN-002;FC-001;CL-003;F-003,CL-003;F-003;TN-001,3,2,0,1,Status: blocked
+S-013,TM-001;TM-002;TN-002,TM-001;TM-002;TN-002,3,0,0,3,Status: needs_review
+S-014,DS-001;F-008,NONE,0,2,0,0,Status: ready_for_approval
+S-015,TM-003;CL-002,TM-003,1,1,0,0,Status: needs_review
+S-016,FC-002;TM-002;CL-001;CL-003;TN-002;F-004,CL-003;F-004;TM-002;TN-002,4,2,0,1,Status: blocked
+S-017,CL-003;FC-001;F-005;F-006,F-006;TEST-001,1,3,1,2,Status: blocked
+S-018,TM-001;FC-001;F-002,TM-001,1,2,0,0,Status: needs_review
+S-019,TN-001;TM-003;CL-002,TM-003;TN-001,2,1,0,0,Status: needs_review
+S-020,TM-002;TM-001,TM-001;TM-002,2,0,0,0,Status: needs_review
+S-021,TN-002;CL-003;F-005,TN-002,1,2,0,0,Status: needs_review
+S-022,TM-002;CL-001,CL-001;TM-002,2,0,0,0,Status: needs_review
+S-023,FC-001;TN-002;F-007,FC-001;TN-002,2,1,0,3,Status: blocked
+S-024,TN-001;TM-003;CL-003,TM-003;TN-001,2,1,0,2,Status: blocked
+S-025,CL-003;F-003,CL-003,1,1,0,1,Status: needs_review
+S-026,NONE,NONE,0,0,0,0,Status: ready_for_approval
+S-027,NONE,NONE,0,0,0,0,Status: ready_for_approval
+S-028,NONE,NONE,0,0,0,0,Status: ready_for_approval
+S-029,NONE,NONE,0,0,0,0,Status: needs_review
+S-030,NONE,NONE,0,0,0,0,Status: needs_review
