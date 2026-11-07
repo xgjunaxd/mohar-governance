@@ -183,12 +183,16 @@ def get_submission_detail(sub_id: str):
         findings = findings_res.data
         
     comments_res = db.table("comments").select("*").eq("submission_id", sub_id).order("created_at").execute()
+
+    # The audit log is returned so the approval seal is still visible after a page reload.
+    audit_res = db.table("audit_log").select("*").eq("submission_id", sub_id).order("created_at", desc=True).execute()
     
     return {
         "submission": sub_res.data[0],
         "versions": versions,
         "current_findings": findings,
-        "comments": comments_res.data
+        "comments": comments_res.data,
+        "audit_logs": audit_res.data or []
     }
 
 @app.post("/api/findings/{finding_id}/decision")
@@ -310,13 +314,31 @@ def approve_submission(
 
     sub = sub_res.data[0]
 
-    if sub["status"] != "ready_for_approval" and req.decision == "approve":
-        raise HTTPException(
-            status_code=400,
-            detail="Cannot approve: submission still has unresolved issues.",
-        )
-
     active_version = sub["current_version"]
+
+    if req.decision == "approve":
+        if sub["status"] == "approved":
+            raise HTTPException(status_code=409, detail="This submission is already approved.")
+
+        # 'blocked' (unresolved high-severity findings) can never be approved.
+        if sub["status"] not in ("ready_for_approval", "needs_review"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot approve a submission with status '{sub['status']}'. Resolve the high-severity findings first.",
+            )
+
+        # Accepted fixes only change the editor text; the saved text must be re-analysed first.
+        cur_v = (
+            db.table("versions").select("id")
+            .eq("submission_id", subid).eq("version_no", active_version).execute()
+        )
+        if cur_v.data:
+            f_res = db.table("findings").select("decision").eq("version_id", cur_v.data[0]["id"]).execute()
+            if any(f.get("decision") in ("accept", "edit") for f in (f_res.data or [])):
+                raise HTTPException(
+                    status_code=409,
+                    detail="Accepted fixes have not been applied yet. The creator must click 'Save Edits & Re-Analyze' first.",
+                )
     
     # Bug 1 & 2 Fix: Cryptographically seal the approved version
     crypto_seal = None
