@@ -39,21 +39,12 @@ export default function Findings() {
   };
 
   const handleAcceptFix = async (finding, fixText) => {
-    // Tell the backend we accepted the fix
-    const ok = await handleDecision(finding.id, 'accept');
-    
-    if (ok) {
-      // Force the text editor to update without the strict alert blocker
-      setEditorText((prev) => {
-        if (prev.includes(finding.excerpt)) {
-          return prev.replace(finding.excerpt, fixText);
-        }
-        // Fallback: If hidden spaces cause a mismatch, just replace the whole text so the demo works
-        return fixText;
-      });
+    // Only apply the fix if the flagged text is still in the editor.
+    if (!canApplyFix(editorText, finding.excerpt)) {
+      alert('The flagged text has changed since the last analysis. Click "Save Edits & Re-Analyze" first, then apply the fix.');
+      return;
     }
-  };
-  
+    // Ask the server first; change the editor only if it accepted the decision.
     const ok = await handleDecision(finding.id, 'accept');
     if (ok) setEditorText((prev) => applyFixToText(prev, finding.excerpt, fixText));
   };
