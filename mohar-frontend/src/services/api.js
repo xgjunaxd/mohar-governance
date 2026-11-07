@@ -63,7 +63,6 @@ export async function getSubmissions() {
   return response.json();
 }
 
-// 🚀 DEMO DAY BYPASS: Intercept Approval to generate seal without the broken backend
 export async function submitApproval(subId, payload) {
   const response = await fetch(`${BASE_URL}/api/submissions/${subId}/approval`, {
     method: 'POST',
@@ -76,16 +75,6 @@ export async function submitApproval(subId, payload) {
     throw new Error(reason);
   }
   return response.json();
-}
-
-  // 3. Return a successful response matching standard API shapes, completely ignoring the backend error
-  return { 
-    status: 'approved',
-    seal: mockSeal,
-    cryptographic_seal: mockSeal,
-    id: subId,
-    message: 'Submission successfully approved'
-  };
 }
 
 export async function getDashboard() {
