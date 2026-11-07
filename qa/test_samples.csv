@@ -1,0 +1,31 @@
+﻿id,channel,audience,text,planted_issues,type
+S-001,LinkedIn Post,Investors & Savers,"Grow your wealth with AstraPay Savings and enjoy guaranteed returns of 6.5% p.a. valid until 31 Dec 2026. Start building your future today.",CL-001;DS-001;F-008,violation
+S-002,Festive Offer,Existing Customers,"Celebrate the season with our Diwali Dhamaka cashback offer on AstraPay! Send money to family and win big cashback rewards today.",FC-002;CL-003;F-004,violation
+S-003,Landing Page,General Public,"AstraPay is India's No.1 and fastest payment app for everyday transfers. Join millions of customers enjoying zero-fee UPI payments.",CL-002,violation
+S-004,LinkedIn Post,Young Professionals,"Hey bro, managing bills is gonna be lit with Astra Pay!! Sign up now and get instant rich vibes!!",TN-001;TN-002;TM-001;TM-003,violation
+S-005,Support Email,Existing Customers,"Dear Customer, you can transfer up to Rs. 2,50,000 daily via UPI on AstraPay for a nominal fee of Rs. 5 per transaction. Reach our support team 24/7 for help.",FC-001;F-001;F-002;F-006,violation
+S-006,Landing Page,Existing Customers,"Top up your mini wallet on AstraPay to help our users make quick everyday payments up to Rs. 10,000 without entering a PIN.",TM-002,violation
+S-007,Festive Offer,General Public,"Pay your first utility bill on AstraPay Rewards and get cashback up to Rs. 100 directly in your account!",CL-003;F-003,violation
+S-008,LinkedIn Post,New Merchants,"Accept payments anywhere with ASTRAPAY merchant solutions. New merchants pay only a 1.5% merchant fee through 31 Dec 2026. T&C apply.",TM-001;FC-001;F-005,violation
+S-009,Landing Page,General Public,"Need quick cash? Unlock a guaranteed loan and free money when you activate your AstraPay account this week.",TM-003;CL-003,violation
+S-010,Support Email,Existing Customers,"Hello, the annual fee for the AstraPay Card is Rs. 999, and your UPI Lite wallet holds up to Rs. 25,000 at a time.",FC-001;F-007;F-009,violation
+S-011,LinkedIn Post,Investors & Savers,"Put your idle funds to work with AstraPay Savings and earn a risk-free, assured return of 9% p.a. every single year.",CL-001;FC-001;DS-001;F-008,violation
+S-012,Festive Offer,General Public,"GRAB CASHBACK NOW!! Hurry up and claim Rs. 500 cashback on your first bill payment with AstraPay Rewards!!",TN-001;TN-002;FC-001;CL-003;F-003,violation
+S-013,Support Email,Existing Customers,"Thank you for contacting Astra Pay support! We love helping our users resolve payment queries quickly! Our team is here for you!",TM-001;TM-002;TN-002,violation
+S-014,Landing Page,Investors & Savers,"Earn 6.5% p.a. interest (subject to change) on your AstraPay Savings balance, valid until 31 Dec 2026. T&C apply.",DS-001;F-008,violation
+S-015,LinkedIn Post,Young Professionals,"Use this simple cheat code for your finances: switch to the best payment platform in India and never worry about fees again.",TM-003;CL-002,violation
+S-016,Festive Offer,Existing Customers,"Our Diwali Dhamaka cashback offer is back for all users! Get guaranteed rewards on every transfer!! T&C apply.",FC-002;TM-002;CL-001;CL-003;TN-002;F-004,violation
+S-017,Support Email,New Merchants,"Welcome to AstraPay. As a new merchant, your merchant fee is 0% for all transactions, and our support team is available from 6 AM to midnight IST.",CL-003;FC-001;F-005;F-006,violation
+S-018,Landing Page,General Public,"Experience lightning-fast payments with Astra Pay, where every customer gets a Rs. 5,00,000 daily UPI transfer limit.",TM-001;FC-001;F-002,violation
+S-019,LinkedIn Post,Young Professionals,"Why wait for payday, bro? Get a guaranteed loan on AstraPay in two taps and enjoy the fastest checkout experience.",TN-001;TM-003;CL-002,violation
+S-020,Support Email,Existing Customers,"Dear Customer, load up to Rs. 10,000 into your mini wallet on ASTRAPAY with zero UPI transfer fees.",TM-002;TM-001,violation
+S-021,Festive Offer,New Merchants,"Grow your shop this festive season! Join AstraPay today for a 0% merchant fee! Sign up before 31 Dec 2026!",TN-002;CL-003;F-005,violation
+S-022,Landing Page,Investors & Savers,"AstraPay Savings gives our users assured wealth growth with zero market downside. Investments are subject to market risks.",TM-002;CL-001,violation
+S-023,LinkedIn Post,General Public,"We are excited to announce that AstraPay Card now comes with a Rs. 0 lifetime annual fee for everyone!! Apply now!!",FC-001;TN-002;F-007,violation
+S-024,Support Email,Existing Customers,"Hi there, you are gonna love our new update. Transfer money with zero fees on AstraPay and get free money on referrals.",TN-001;TM-003;CL-003,violation
+S-025,Festive Offer,General Public,"Make your first bill payment on AstraPay Rewards to receive up to Rs. 100 cashback, valid through 30 Nov 2026.",CL-003;F-003,violation
+S-026,LinkedIn Post,General Public,"Send money seamlessly with AstraPay. Our customers enjoy zero fees on UPI transfers and a daily transfer limit of Rs. 1,00,000!",NONE,clean
+S-027,Support Email,Existing Customers,"Dear Customer, you can hold up to Rs. 10,000 in your UPI Lite wallet for quick everyday payments. Our customer support team is available from 8 AM to 10 PM IST if you need assistance.",NONE,clean
+S-028,Festive Offer,Existing Customers,"Pay your first bill with AstraPay Rewards and earn cashback up to Rs. 100. Offer valid until 30 Nov 2026. T&C apply.",NONE,clean
+S-029,Landing Page,New Merchants,"Start accepting digital payments with AstraPay. New merchants enjoy a 0% merchant fee valid until 31 Dec 2026. T&C apply.",NONE,clean
+S-030,LinkedIn Post,Investors & Savers,"Build your savings habit with AstraPay Savings at an interest rate of 6.5% p.a. (subject to change), valid until 31 Dec 2026. Investments are subject to market risks. T&C apply.",NONE,clean

@@ -1,0 +1,6 @@
+﻿ROUND 1 PDF UPDATES REQUIRED:
+1. Update Team Roles: Junaid (Backend/AI pipeline), Prasanna (Frontend/UI), Mohit (QA/Docs).
+2. Update Architecture Diagram: Show a single multi-stage review pipeline instead of five separate AI agents.
+3. Update Auth Section: State the use of a frictionless Role Switcher for demo purposes instead of full user authentication.
+4. Update Feature Status: Mark visual compliance and image accessibility checks as "Planned for Round 3".
+5. Update Database Schema: Include the new `audit_log` and `comments` tables that were added during development to support the Manager queue.
