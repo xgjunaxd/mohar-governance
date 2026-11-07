@@ -23,6 +23,7 @@ from app.validator import validate_findings
 
 # Simple in-memory cache keyed by SHA-256 hash of (text, channel, audience)
 _PIPELINE_CACHE: Dict[str, Dict[str, Any]] = {}
+_CACHE_MAX_ENTRIES = 500
 
 SEVERITY_RANK = {"high": 3, "medium": 2, "low": 1}
 
@@ -190,6 +191,8 @@ def run_review_pipeline(
 
     # Only cache when Gemini succeeded or when Gemini was intentionally disabled
     if use_cache and (not fallback_used or not use_gemini):
+        if len(_PIPELINE_CACHE) >= _CACHE_MAX_ENTRIES:  # keep memory bounded
+            _PIPELINE_CACHE.pop(next(iter(_PIPELINE_CACHE)))
         _PIPELINE_CACHE[cache_key] = copy.deepcopy(result)
 
     return result
