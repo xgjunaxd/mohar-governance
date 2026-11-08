@@ -18,6 +18,7 @@ Checks:
 from __future__ import annotations
 
 import re
+from app.fact_checks import run_fact_checks, check_superlatives
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
@@ -450,5 +451,13 @@ def run_rules_engine(
                         fix_2="Pay bills seamlessly on AstraPay with zero UPI transfer fees.",
                     )
                 )
+
+    # -------------------------------------------------------------------------
+    # 10. Backup checks that work without Gemini: FC-001 numbers vs approved facts,
+    #     and CL-002 superlatives (see app/fact_checks.py)
+    # -------------------------------------------------------------------------
+    findings.extend(run_fact_checks(text, active_facts))
+    if rules is None or any(str(r.get("id", "")).upper() == "CL-002" for r in rules):
+        findings.extend(check_superlatives(text))
 
     return findings
