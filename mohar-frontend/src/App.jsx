@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from './lib/supabase';
 import Login from './components/Login';
-import Dashboard from './components/Dashboard'; // Your main app component
+import FactEditor from './components/FactEditor';
+import Navbar from './components/Navbar'; // Assuming your Navbar is here
+// Import your existing workspace components below
+// import CreatorWorkspace from './components/CreatorWorkspace';
+// import ApprovalQueue from './components/ApprovalQueue';
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -28,6 +32,7 @@ export default function App() {
     setUserRole(data?.role || 'creator');
   };
 
+  // 1. If not logged in, show the Login screen
   if (!session) {
     return <Login onLogin={(user) => {
       setSession({ user });
@@ -35,6 +40,25 @@ export default function App() {
     }} />;
   }
 
-  // Pass the verified role down to your components instead of the demo switcher
-  return <Dashboard user={session.user} role={userRole} />;
+  // 2. If logged in, show the Navbar and the correct workspace based on role
+  return (
+    <div className="min-h-screen bg-black text-white font-sans">
+      <Navbar user={session.user} role={userRole} />
+      
+      <main className="pt-4">
+        {userRole === 'reviewer' && (
+          <FactEditor user={session.user} token={session.access_token} />
+        )}
+        
+        {/* Replace these divs with your actual components */}
+        {userRole === 'manager' && (
+          <div className="p-8">Manager Approval Queue Component Goes Here</div>
+        )}
+        
+        {userRole === 'creator' && (
+          <div className="p-8">Creator Workspace Component Goes Here</div>
+        )}
+      </main>
+    </div>
+  );
 }
