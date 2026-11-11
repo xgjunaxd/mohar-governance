@@ -1,62 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { RoleProvider, useRole } from './context/RoleContext';
-import { checkBackendHealth } from './services/api';
-import Navbar from './components/Navbar';
-import Workspace from './pages/Workspace';
-import Submit from './pages/Submit';
-import Findings from './pages/Findings';
-import Queue from './pages/Queue';
-import Dashboard from './pages/Dashboard';
-import Login from './pages/Login';
-import Knowledge from './pages/Knowledge';
-
-function MainLayout() {
-  const [isBackendOnline, setIsBackendOnline] = useState(false);
-  const { currentRole } = useRole();
-
-  useEffect(() => {
-    checkBackendHealth().then(setIsBackendOnline);
-    const interval = setInterval(() => {
-      checkBackendHealth().then(setIsBackendOnline);
-    }, 15000);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
-      <Navbar isBackendOnline={isBackendOnline} />
-      <main className="flex-grow">
-        {currentRole ? (
-          <Routes>
-            <Route path="/" element={<Workspace />} />
-            <Route path="/submit" element={<Submit />} />
-            <Route path="/findings/:id" element={<Findings />} />
-            <Route path="/queue" element={<Queue />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/knowledge" element={<Knowledge />} />
-            <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        ) : (
-          <Routes>
-            <Route path="*" element={<Login />} />
-          </Routes>
-        )}
-      </main>
-      <footer className="border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
-        Mohar Brand Governance Platform • AstraPay Demo Workspace • CodeNexus India 2026
-      </footer>
-    </div>
-  );
-}
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
+import Login from './components/Login';
+import Dashboard from './components/Dashboard'; // Your main app component
 
 export default function App() {
-  return (
-    <RoleProvider>
-      <BrowserRouter>
-        <MainLayout />
-      </BrowserRouter>
-    </RoleProvider>
-  );
+  const [session, setSession] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      if (session) fetchRole(session.user.id);
+    });
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) fetchRole(session.user.id);
+    });
+  }, []);
+
+  const fetchRole = async (userId) => {
+    const { data } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+    setUserRole(data?.role || 'creator');
+  };
+
+  if (!session) {
+    return <Login onLogin={(user) => {
+      setSession({ user });
+      setUserRole(user.role);
+    }} />;
+  }
+
+  // Pass the verified role down to your components instead of the demo switcher
+  return <Dashboard user={session.user} role={userRole} />;
 }
