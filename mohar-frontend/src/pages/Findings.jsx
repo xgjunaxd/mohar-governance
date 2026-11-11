@@ -51,6 +51,8 @@ export default function Findings() {
 
   if (loading || !data) return <main><div className="glass hero sheen"><h2>Loading analysis...</h2></div></main>;
   const { submission, current_findings } = data;
+  const isCreator = currentRole === 'Creator';
+  const isVisual = submission.channel === 'visual_asset';
 
   return (
     <main>
@@ -65,14 +67,18 @@ export default function Findings() {
               <span style={{textTransform:'capitalize'}}>Channel: {submission.channel}</span> | <span style={{textTransform:'capitalize'}}>Audience: {submission.audience}</span> | <span>v{submission.current_version}</span>
             </div>
             <div className="field">
-              <label>Content Editor</label>
-              <textarea value={editorText} onChange={e => setEditorText(e.target.value)} style={{height: '280px'}} />
+              <label>{isVisual ? 'Image record' : 'Content Editor'}</label>
+              <textarea value={editorText} onChange={e => setEditorText(e.target.value)} readOnly={isVisual || !isCreator} style={{height: '280px'}} />
             </div>
-            <div className="row" style={{marginTop: '20px'}}>
-              <button onClick={handleResubmit} disabled={resubmitting} className="btn primary" style={{width: '100%'}}>
-                {resubmitting ? "Re-analyzing..." : "Save Edits & Re-Analyze"}
-              </button>
-            </div>
+            {isVisual && <p style={{fontSize: '13px', color: 'var(--text-2)'}}>To fix an image, upload the corrected file as a new submission.</p>}
+            {!isVisual && isCreator && (
+              <div className="row" style={{marginTop: '20px'}}>
+                <button onClick={handleResubmit} disabled={resubmitting} className="btn primary" style={{width: '100%'}}>
+                  {resubmitting ? "Re-analyzing..." : "Save Edits & Re-Analyze"}
+                </button>
+              </div>
+            )}
+            {!isCreator && <p style={{fontSize: '13px', color: 'var(--text-2)'}}>Read-only for {currentRole}s. Only the Creator can edit and re-analyze.</p>}
           </div>
         </div>
 
@@ -96,14 +102,14 @@ export default function Findings() {
               </p>
               <p style={{marginBottom: '16px', fontSize: '14px', color: 'var(--text)'}}>{f.explanation}</p>
               
-              {f.decision === 'pending' && (
+              {f.decision === 'pending' && isCreator && (
                 <div style={{marginTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px'}}>
-                  <div className="label" style={{marginBottom: '10px'}}>Suggested Fixes</div>
+                  <div className="label" style={{marginBottom: '10px'}}>{isVisual ? 'Suggested fixes (apply them, then upload the corrected image)' : 'Suggested Fixes'}</div>
                   <div style={{display: 'grid', gap: '10px'}}>
-                    <button onClick={() => handleAcceptFix(f, f.fix_1)} className="btn" style={{justifyContent: 'flex-start', textAlign:'left', height: 'auto', padding: '12px'}}>
+                    <button disabled={isVisual} onClick={() => handleAcceptFix(f, f.fix_1)} className="btn" style={{justifyContent: 'flex-start', textAlign:'left', height: 'auto', padding: '12px'}}>
                       <strong>Option 1:</strong> <span style={{marginLeft: '6px', fontWeight: 'normal', color: 'var(--text-2)'}}>{f.fix_1}</span>
                     </button>
-                    <button onClick={() => handleAcceptFix(f, f.fix_2)} className="btn" style={{justifyContent: 'flex-start', textAlign:'left', height: 'auto', padding: '12px'}}>
+                    <button disabled={isVisual} onClick={() => handleAcceptFix(f, f.fix_2)} className="btn" style={{justifyContent: 'flex-start', textAlign:'left', height: 'auto', padding: '12px'}}>
                       <strong>Option 2:</strong> <span style={{marginLeft: '6px', fontWeight: 'normal', color: 'var(--text-2)'}}>{f.fix_2}</span>
                     </button>
                     <div className="row" style={{marginTop: '6px'}}>
