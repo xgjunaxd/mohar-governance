@@ -1,12 +1,29 @@
-﻿import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import { getSession, saveSession, clearSession } from '../services/api';
 
 const RoleContext = createContext();
 
+/* Real sign-in: the role comes from the server (verified token), not from a button. */
 export function RoleProvider({ children }) {
-  // Guaranteed correct state setter for the Navbar
-  const [currentRole, setRole] = useState('Creator');
+  const [session, setSession] = useState(getSession());
+
+  useEffect(() => {
+    const onSignOut = () => setSession(null);
+    window.addEventListener('mohar:signout', onSignOut);
+    return () => window.removeEventListener('mohar:signout', onSignOut);
+  }, []);
+
+  const signIn = (payload) => setSession(saveSession(payload));
+  const signOut = () => { clearSession(); setSession(null); };
+
   return (
-    <RoleContext.Provider value={{ currentRole, setRole }}>
+    <RoleContext.Provider value={{
+      session,
+      currentRole: session ? session.role : null,
+      email: session ? session.email : null,
+      signIn,
+      signOut,
+    }}>
       {children}
     </RoleContext.Provider>
   );
