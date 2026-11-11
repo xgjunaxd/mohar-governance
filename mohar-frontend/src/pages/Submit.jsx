@@ -1,12 +1,14 @@
-﻿import React, { useState } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { submitPost } from '../services/api';
+import { submitPost, submitVisual } from '../services/api';
 
 const sanitizeInput = (str) => str.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '').replace(/[<>]/g, '');
 
 export default function Submit() {
   const navigate = useNavigate();
+  const [tab, setTab] = useState('text');
   const [loading, setLoading] = useState(false);
+  const [img, setImg] = useState({ file: null, alt: '', title: '', preview: '' });
   const [error, setError] = useState(null);
   const [formData, setFormData] = useState({ title: '', channel: 'social', audience: 'general', text: '', creator: 'Creator User' });
 
@@ -23,7 +25,27 @@ export default function Submit() {
     try {
       const res = await submitPost({ ...formData, title: cleanTitle, text: cleanText });
       navigate(`/findings/${res.submission_id}`);
-    } catch (err) { setError(err?.response?.data?.detail || "Failed to reach server. Please check rate limits or backend status."); }
+    } catch (err) { setError(err.message || "Failed to reach server. Please check rate limits or backend status."); }
+    finally { setLoading(false); }
+  };
+
+  const pickImage = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) { setError('Image is too large (max 5 MB).'); return; }
+    if (img.preview) URL.revokeObjectURL(img.preview);
+    setError(null);
+    setImg({ ...img, file, preview: URL.createObjectURL(file), title: img.title || file.name.replace(/\.[^.]+$/, '') });
+  };
+
+  const handleImageSubmit = async (e) => {
+    e.preventDefault();
+    if (!img.file) { setError('Please choose an image first.'); return; }
+    setLoading(true); setError(null);
+    try {
+      const res = await submitVisual(img.file, sanitizeInput(img.alt.trim()), sanitizeInput(img.title.trim()));
+      navigate(`/findings/${res.submission_id}`);
+    } catch (err) { setError(err.message); }
     finally { setLoading(false); }
   };
 
@@ -39,8 +61,14 @@ export default function Submit() {
         </div>
       </div>
 
+      <div className="seg" role="group" aria-label="Content type" style={{ marginBottom: '18px', width: 'fit-content' }}>
+        <button type="button" aria-pressed={tab === 'text'} onClick={() => { setTab('text'); setError(null); }}>Text post</button>
+        <button type="button" aria-pressed={tab === 'image'} onClick={() => { setTab('image'); setError(null); }}>Image / poster</button>
+      </div>
+
       {error && <div className="glass pad" style={{marginBottom: '18px', color: 'var(--blocked)'}}><strong>Security / Validation Alert:</strong> {error}</div>}
       
+      {tab === 'text' && (
       <form onSubmit={handleSubmit} className="glass pad hoverlift">
         <div className="field">
           <label>Internal Title (Max 120 chars)</label>
@@ -80,6 +108,29 @@ export default function Submit() {
           </button>
         </div>
       </form>
+      )}
+
+      {tab === 'image' && (
+        <form onSubmit={handleImageSubmit} className="glass pad hoverlift">
+          <div className="field">
+            <label>Image or poster (PNG, JPEG or WebP, max 5 MB)</label>
+            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={pickImage} />
+          </div>
+          {img.preview && <img src={img.preview} alt="Preview of the selected upload" style={{ maxWidth: '100%', maxHeight: '260px', borderRadius: '12px', marginBottom: '16px' }} />}
+          <div className="field">
+            <label>Internal title</label>
+            <input maxLength={120} type="text" placeholder="e.g., Diwali poster" value={img.title} onChange={(e) => setImg({ ...img, title: e.target.value })} />
+          </div>
+          <div className="field">
+            <label>Alt text (describe the image for screen-reader users)</label>
+            <textarea rows="3" maxLength={500} placeholder="e.g., AstraPay app showing a UPI payment confirmation screen" value={img.alt} onChange={(e) => setImg({ ...img, alt: e.target.value })}></textarea>
+          </div>
+          <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>Mohar checks alt text, text contrast (4.5:1) and brand colours. Contrast is estimated from the image's main colours.</p>
+          <button type="submit" disabled={loading || !img.file} className="btn primary" style={{ width: '100%' }}>
+            {loading ? 'Checking image...' : 'Run Visual Check'}
+          </button>
+        </form>
+      )}
     </main>
   );
 }
