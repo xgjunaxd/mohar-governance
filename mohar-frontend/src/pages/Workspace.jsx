@@ -95,8 +95,11 @@ export default function Workspace() {
             <div className="row" style={{ marginBottom: '10px' }}>
               <span className="chip id">{fact.id}</span>
               {fact.expires_on && (
-                <span className="chip review">Expires: {fact.expires_on}</span>
+                <span className={`chip ${String(fact.status).toLowerCase() === 'expired' ? 'blocked' : 'review'}`}>
+                  {String(fact.status).toLowerCase() === 'expired' ? 'Expired' : 'Expires'}: {fact.expires_on}
+                </span>
               )}
+              {fact.version > 1 && <span className="chip info">v{fact.version}</span>}
             </div>
             <p style={{ margin: '8px 0 12px' }}>{fact.approved_text}</p>
             <div className="label">Source: {fact.source}</div>
