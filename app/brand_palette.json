@@ -1,0 +1,12 @@
+{
+  "_note": "DEMO palette for the AstraPay demo brand. Replace with the real brand colours if your problem statement lists them.",
+  "colours": {
+    "AstraPay Green": "#0B6E4F",
+    "Deep Ink": "#0A1F1A",
+    "Mint": "#CDEFE1",
+    "Signal Orange": "#FF5A3C",
+    "White": "#FFFFFF"
+  },
+  "max_distance": 70,
+  "min_share_percent": 10
+}
