@@ -1,9 +1,10 @@
-﻿import csv
+import csv
 import json
 import os
 import sys
 import urllib.request
 import urllib.error
+import time
 
 API_BASE = os.environ.get("MOHAR_API_URL", "http://127.0.0.1:8000").rstrip("/")
 SAMPLES_PATH = os.path.join("qa", "test_samples.csv")
@@ -14,12 +15,40 @@ def parse_ids(raw_str):
         return set()
     return {item.strip() for item in raw_str.split(";") if item.strip()}
 
+def get_token():
+    """Round 3: the API needs a sign-in. Use MOHAR_TOKEN if set, else sign in as the demo Creator."""
+    token = os.environ.get("MOHAR_TOKEN", "").strip()
+    if token:
+        return token
+    req = urllib.request.Request(
+        f"{API_BASE}/api/auth/demo", data=json.dumps({"role": "Creator"}).encode("utf-8"),
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=70) as resp:
+            return json.loads(resp.read().decode("utf-8"))["access_token"]
+    except Exception:
+        return ""  # older backend without sign-in
+
+
+def post_with_retry(req, tries=6):
+    """Waits and retries when the rate limiter answers 429."""
+    for attempt in range(tries):
+        try:
+            return urllib.request.urlopen(req, timeout=70)
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < tries - 1:
+                time.sleep(int(e.headers.get("Retry-After", "10")) + 1)
+                continue
+            raise
+
+
 def run_evaluation():
     if not os.path.exists(SAMPLES_PATH):
         print(f"Error: {SAMPLES_PATH} not found.")
         sys.exit(1)
 
     print(f"Running Mohar QA Evaluation against: {API_BASE}/api/submissions")
+    token = get_token()
     rows_out = []
     total_tp = 0
     total_fn = 0
@@ -47,12 +76,12 @@ def run_evaluation():
             req = urllib.request.Request(
                 f"{API_BASE}/api/submissions",
                 data=payload,
-                headers={"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {token}"} if token else {})},
                 method="POST"
             )
 
             try:
-                with urllib.request.urlopen(req, timeout=70) as resp:
+                with post_with_retry(req) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
             except Exception as e:
                 print(f"[{sample_id}] API Error: {e}")
