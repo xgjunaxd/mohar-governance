@@ -15,6 +15,7 @@
       [/^\/findings/, '03 — FINDINGS · 検証'],
       [/^\/queue/, '04 — APPROVALS · 承認'],
       [/^\/dashboard/, '05 — DASHBOARD · 概観'],
+      [/^\/knowledge/, '06 — KNOWLEDGE · 知識'],
     ];
     let lastPath = null;
     function updateChapter() {
