@@ -120,8 +120,8 @@ export default function Queue() {
   }, [selectedSub]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleAction = async (decision) => {
-    if (currentRole === 'Creator') {
-      setMessage({ type: 'error', text: 'Access denied: Creators cannot approve or reject submissions. Switch to the Manager role.' });
+    if (currentRole !== 'Manager') {
+      setMessage({ type: 'error', text: 'Access denied: only Managers can approve, reject or request changes. Sign in as a Manager.' });
       return;
     }
     if (!selectedSub) return;
@@ -194,8 +194,8 @@ export default function Queue() {
             <h1 style={{ marginTop: 0 }}>Manager Approval Queue</h1>
             <p>Review version diffs, verify compliance, and issue SHA-256 audit seals.</p>
           </div>
-          <span className={`chip ${currentRole === 'Creator' ? 'review' : 'ready'}`}>
-            Active Access: {currentRole} {currentRole === 'Creator' ? '(Read-Only)' : '(Sign-Off Enabled)'}
+          <span className={`chip ${currentRole !== 'Manager' ? 'review' : 'ready'}`}>
+            Active Access: {currentRole} {currentRole !== 'Manager' ? '(Read-Only)' : '(Sign-Off Enabled)'}
           </span>
         </div>
       </div>
@@ -287,7 +287,7 @@ export default function Queue() {
                 </div>
               )}
 
-              {currentRole !== 'Creator' && !isApproved ? (
+              {currentRole === 'Manager' && !isApproved ? (
                 <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '18px' }}>
                   <div className="field">
                     <label htmlFor="audit-comment">Manager Audit Comment (Max 300 chars)</label>
@@ -306,9 +306,9 @@ export default function Queue() {
                     <button onClick={() => handleAction('request_changes')} disabled={busy} className="btn" style={disabledStyle(busy)}>Request Changes</button>
                   </div>
                 </div>
-              ) : currentRole === 'Creator' && !isApproved ? (
+              ) : currentRole !== 'Manager' && !isApproved ? (
                 <div className="glass pad" style={{ marginTop: '20px', background: 'rgba(255,210,122,0.08)' }}>
-                  <span className="chip review">Protected Admin Route: Switch role to Manager or Reviewer in the top bar to approve or reject.</span>
+                  <span className="chip review">Only Managers can approve or reject. Sign in as a Manager to continue.</span>
                 </div>
               ) : null}
 
@@ -318,7 +318,7 @@ export default function Queue() {
                   {(selectedSub.audit_logs || []).length === 0 && <p>No audit entries yet.</p>}
                   {(selectedSub.audit_logs || []).map((log) => (
                     <div key={log.id} style={{ padding: '10px 12px', borderRadius: 12, background: 'rgba(5,31,32,0.45)', border: '1px solid rgba(255,255,255,0.08)', fontSize: '13.5px' }}>
-                      <strong>{log.role}</strong> &middot; {(log.action || '').replace(/_/g, ' ')}
+                      <strong>{log.actor_email || log.role}</strong> <span style={{ color: 'var(--text-2)' }}>({log.role})</span> &middot; {(log.action || '').replace(/_/g, ' ')}
                       <span style={{ float: 'right', color: 'var(--text-2)' }}>{new Date(log.created_at).toLocaleString()}</span>
                       <div style={{ color: 'var(--text-2)', marginTop: 4, wordBreak: 'break-word' }}>{tidyDetail(log.detail)}</div>
                     </div>
