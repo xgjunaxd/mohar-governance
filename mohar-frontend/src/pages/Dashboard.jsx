@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { getDashboard } from '../services/api';
+import { Link } from 'react-router-dom';
+import { getDashboard, getAlerts } from '../services/api';
 
 export default function Dashboard() {
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [alerts, setAlerts] = useState(null);
+  const [alertError, setAlertError] = useState('');
 
   async function loadDashboard() {
     setLoading(true);
@@ -58,6 +61,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDashboard();
+    getAlerts().then(setAlerts).catch((e) => setAlertError(e.message));
   }, []);
 
   if (loading) {
@@ -181,6 +185,38 @@ export default function Dashboard() {
               )
             )}
           </div>
+        )}
+      </div>
+      <div className="glass pad hoverlift" style={{ marginTop: '20px' }}>
+        <h3 style={{ marginBottom: '6px' }}>Expiring &amp; Expired Facts</h3>
+        <p style={{ marginBottom: '16px', fontSize: '13px' }}>Facts that expire within 30 days, and approved posts that repeat them.</p>
+        {alertError && <p role="alert" style={{ color: 'var(--blocked)' }}>{alertError}</p>}
+        {alerts && alerts.alerts.length === 0 && <p>No facts are expiring soon.</p>}
+        {alerts && alerts.alerts.length > 0 && (
+          <div style={{ display: 'grid', gap: '14px' }}>
+            {alerts.alerts.map((a) => (
+              <div key={a.fact_id} style={{ paddingBottom: '14px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="row" style={{ marginBottom: '8px' }}>
+                  <span className="chip id">{a.fact_id}</span>
+                  <span className={`chip ${a.state === 'expired' ? 'blocked' : 'review'}`}>
+                    {a.state === 'expired' ? 'Expired' : `Expires in ${a.days_left} days`}
+                  </span>
+                  {a.expires_on && <span style={{ fontSize: '13px', color: 'var(--text-2)' }}>{a.expires_on}</span>}
+                </div>
+                <div>{a.approved_text}</div>
+                <div style={{ marginTop: '8px', fontSize: '13.5px', color: 'var(--text-2)' }}>
+                  {a.dependent_posts.length === 0
+                    ? 'No approved posts rely on this fact.'
+                    : <>Approved posts that rely on it: {a.dependent_posts.map((p, i) => (
+                        <span key={p.id}>{i > 0 && ', '}<Link to={`/findings/${p.id}`} style={{ color: 'var(--ember)' }}>{p.title}</Link></span>
+                      ))}</>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {alerts && alerts.conflicts && alerts.conflicts.length > 0 && (
+          <p style={{ marginTop: '14px', color: 'var(--review)' }}>{alerts.conflicts.length} fact conflict(s) need a Reviewer's attention.</p>
         )}
       </div>
     </main>
