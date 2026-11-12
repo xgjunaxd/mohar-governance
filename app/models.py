@@ -46,6 +46,9 @@ class FactModel(BaseModel):
     valid_from: Optional[str] = None
     expires_on: Optional[str] = None
     status: str
+    version: Optional[int] = 1
+    topic: Optional[str] = None
+    updated_by: Optional[str] = None
 
 class SampleContentModel(BaseModel):
     title: str
@@ -98,14 +101,27 @@ class FactCreateRequest(BaseModel):
     approved_text: str = Field(..., min_length=1, max_length=1000)
     source: str = Field(..., min_length=1, max_length=300)
     owner: str = Field(..., min_length=1, max_length=100)
-    valid_from: Optional[str] = Field(default=None, max_length=10)
-    expires_on: Optional[str] = Field(default=None, max_length=10)
+    valid_from: Optional[str] = Field(default=None, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    expires_on: Optional[str] = Field(default=None, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
     status: str = Field(default="active", max_length=30)
+    topic: Optional[str] = Field(default=None, max_length=60)
 
 class FactUpdateRequest(BaseModel):
     approved_text: Optional[str] = Field(default=None, min_length=1, max_length=1000)
     source: Optional[str] = Field(default=None, max_length=300)
     owner: Optional[str] = Field(default=None, max_length=100)
-    valid_from: Optional[str] = Field(default=None, max_length=10)
-    expires_on: Optional[str] = Field(default=None, max_length=10)
-    status: Optional[str] = Field(default=None, max_length=30)
+    valid_from: Optional[str] = Field(default=None, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    expires_on: Optional[str] = Field(default=None, max_length=10, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    status: Optional[Literal["active", "expired", "draft"]] = None
+    topic: Optional[str] = Field(default=None, max_length=60)
+    change_note: Optional[str] = Field(default=None, max_length=300)
+    clear_expiry: bool = False
+
+
+# --- Round 3: sign-in ---
+class LoginRequest(BaseModel):
+    email: str = Field(..., min_length=3, max_length=200)
+    password: str = Field(..., min_length=1, max_length=200)
+
+class DemoLoginRequest(BaseModel):
+    role: Literal["Creator", "Manager", "Reviewer"]
