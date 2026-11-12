@@ -1,4 +1,7 @@
+import { toast } from '../utils/toast';
+
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const TIMEOUT_MS = 90000; // free hosting can take up to ~60s to wake up
 const SESSION_KEY = 'mohar.session';
 
 /* ---------- session (kept in this browser tab only) ---------- */
@@ -32,7 +35,20 @@ async function request(path, { method = 'GET', body, form, fallback = 'Request f
   if (form) payload = form;
   else if (body !== undefined) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
 
-  const response = await fetch(`${BASE_URL}${path}`, { method, headers, body: payload });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  let response;
+  try {
+    response = await fetch(`${BASE_URL}${path}`, { method, headers, body: payload, signal: controller.signal });
+  } catch (err) {
+    const msg = err.name === 'AbortError'
+      ? 'The server is taking too long to answer. It may be waking up, please try again in a moment.'
+      : 'Cannot reach the server. Check your internet connection and try again.';
+    toast(msg, 'error');
+    throw new Error(msg);
+  } finally {
+    clearTimeout(timer);
+  }
   if (!response.ok) {
     let reason = `${fallback} (${response.status})`;
     try {
@@ -45,10 +61,25 @@ async function request(path, { method = 'GET', body, form, fallback = 'Request f
       window.dispatchEvent(new Event('mohar:signout'));
       reason = 'Your session expired. Please sign in again.';
     }
+    if (!path.startsWith('/api/auth/')) toast(reason, 'error');
     throw new Error(reason);
   }
-  return response.json();
+  const data = await response.json();
+  const done = SUCCESS_MESSAGES.find(([m, re]) => m === method && re.test(path));
+  if (done) toast(done[2]);
+  return data;
 }
+
+const SUCCESS_MESSAGES = [
+  ['POST', /^\/api\/submissions$/, 'Review complete'],
+  ['POST', /^\/api\/visual-review$/, 'Image review complete'],
+  ['POST', /^\/api\/submissions\/[^/]+\/resubmit$/, 'New version analysed'],
+  ['POST', /^\/api\/submissions\/[^/]+\/approval$/, 'Decision recorded'],
+  ['POST', /^\/api\/findings\/[^/]+\/decision$/, 'Decision saved'],
+  ['POST', /^\/api\/facts$/, 'Fact added'],
+  ['PUT', /^\/api\/(facts|rules)\//, 'Saved'],
+  ['POST', /^\/api\/auth\//, 'Signed in'],
+];
 
 /* ---------- sign-in ---------- */
 export const login = (email, password) => request('/api/auth/login', { method: 'POST', body: { email, password }, fallback: 'Sign-in failed' });
