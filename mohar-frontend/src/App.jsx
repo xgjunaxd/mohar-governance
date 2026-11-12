@@ -10,6 +10,8 @@ import Queue from './pages/Queue';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import Knowledge from './pages/Knowledge';
+import NotFound from './pages/NotFound';
+import Toaster from './components/Toaster';
 
 function MainLayout() {
   const [isBackendOnline, setIsBackendOnline] = useState(false);
@@ -26,6 +28,7 @@ function MainLayout() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <Navbar isBackendOnline={isBackendOnline} />
+      <Toaster />
       <main className="flex-grow">
         {currentRole ? (
           <Routes>
@@ -36,7 +39,7 @@ function MainLayout() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/knowledge" element={<Knowledge />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         ) : (
           <Routes>
