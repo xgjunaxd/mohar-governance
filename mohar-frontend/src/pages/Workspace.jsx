@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Skeleton from '../components/Skeleton';
 import { getWorkspace } from '../services/api';
 
 export default function Workspace() {
@@ -24,23 +25,7 @@ export default function Workspace() {
     loadWorkspace();
   }, []);
 
-  if (loading) {
-    return (
-      <main>
-        <div
-          className="flex h-screen items-center justify-center text-gray-700"
-          style={{ minHeight: '60vh' }}
-        >
-          <p
-            className="text-lg font-medium animate-pulse"
-            style={{ textAlign: 'center' }}
-          >
-            Waking up the server (this can take up to 60 seconds)...
-          </p>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <Skeleton rows={3} label="Loading workspace" note="Waking up the server. On free hosting this can take up to a minute." />;
 
   if (error) {
     return (
