@@ -3,10 +3,12 @@ import re
 import uuid
 import csv
 import hmac
+import time
 import logging
 from io import StringIO
 from datetime import datetime
-from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, Request
+from datetime import date
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -15,13 +17,14 @@ from app.db import get_db
 from app.models import (
     WorkspaceResponse, SubmissionCreateRequest, FindingDecisionRequest, 
     ResubmitRequest, ApprovalRequest, RuleCreateRequest, RuleUpdateRequest,
-    FactCreateRequest, FactUpdateRequest
+    FactCreateRequest, FactUpdateRequest, LoginRequest, DemoLoginRequest
 )
 from app.seed import WORKSPACE_DATA, RULES_SEED, FACTS_SEED, SAMPLE_CONTENT_SEED
 from app.pipeline import run_review_pipeline
 from app.status import calculate_status
 from app.pipeline import clear_pipeline_cache
 from app.security import SecurityHeadersMiddleware, RateLimitMiddleware
+from app import auth_service, facts_lifecycle, visual
 
 load_dotenv()
 
@@ -41,18 +44,30 @@ bearer_scheme = HTTPBearer(auto_error=False)
 
 # Set REQUIRE_AUTH=true on Render only after the frontend has a sign-in screen.
 REQUIRE_AUTH = os.getenv("REQUIRE_AUTH", "false").strip().lower() == "true"
-APPROVER_ROLES = {"manager", "reviewer"}
+APPROVER_ROLES = {"manager"}          # only Managers approve / reject / request changes
+KNOWLEDGE_ROLES = {"reviewer"}        # only Reviewers edit rules and facts
+_TOKEN_CACHE = {}                     # token -> (expires_at, actor); avoids a Supabase call on every request
+_TOKEN_TTL = 60
 
 
-def resolve_actor(credentials, claimed_role):
-    """Real Supabase sign-in when a token is sent (or REQUIRE_AUTH=true);
-    otherwise the role picked in the top bar."""
+def get_actor(credentials, claimed_role=None):
+    """Who is calling? Returns {"id", "email", "role"}.
+
+    * A Supabase access token is verified, and the role comes from the user_roles table.
+    * With no token: refused when REQUIRE_AUTH=true, otherwise the old top-bar role is used
+      (kept so the old UI and the old tests keep working during the switch-over).
+    """
     if credentials is not None or REQUIRE_AUTH:
         if credentials is None:
             raise HTTPException(status_code=401, detail="Sign in required")
+        token = credentials.credentials
+        hit = _TOKEN_CACHE.get(token)
+        now = time.time()
+        if hit and hit[0] > now:
+            return hit[1]
         db = get_db()
         try:
-            user = db.auth.get_user(credentials.credentials).user
+            user = db.auth.get_user(token).user
         except Exception:
             raise HTTPException(status_code=401, detail="Invalid or expired sign-in")
         if user is None:
@@ -60,26 +75,76 @@ def resolve_actor(credentials, claimed_role):
         rows = db.table("user_roles").select("role").eq("user_id", user.id).execute().data or []
         if not rows:
             raise HTTPException(status_code=403, detail="No role assigned")
-        role = rows[0]["role"]
-    else:
-        role = (claimed_role or "").strip()
+        actor = {"id": user.id, "email": getattr(user, "email", None), "role": str(rows[0]["role"]).strip().capitalize()}
+        if len(_TOKEN_CACHE) > 500:
+            _TOKEN_CACHE.clear()
+        _TOKEN_CACHE[token] = (now + _TOKEN_TTL, actor)
+        return actor
+    return {"id": None, "email": None, "role": (claimed_role or "Creator").strip()}
 
-    if role.lower() not in APPROVER_ROLES:
-        raise HTTPException(status_code=403, detail="Only Managers or Reviewers can approve")
-    return {"role": role}
+
+def actor_dep(credentials=Depends(bearer_scheme)):
+    return get_actor(credentials, None)
+
+
+def creator_dep(credentials=Depends(bearer_scheme)):
+    """Submitting, deciding on findings and resubmitting are Creator actions."""
+    actor = get_actor(credentials, None)
+    if actor["id"] is not None and actor["role"].lower() != "creator":
+        raise HTTPException(status_code=403, detail="Only Creators can submit or edit content.")
+    return actor
+
+
+def resolve_actor(credentials, claimed_role):
+    """Approval guard: real Manager sign-in (or, in legacy mode, the Manager role)."""
+    actor = get_actor(credentials, claimed_role)
+    if actor["role"].lower() not in APPROVER_ROLES:
+        raise HTTPException(status_code=403, detail="Only Managers can approve, reject or request changes")
+    return actor
 
 
 def require_admin(request: Request, credentials=Depends(bearer_scheme)):
-    """Guards rule/fact management. Allowed: (a) a real Supabase sign-in whose
-    role is manager/reviewer, or (b) the secret X-Admin-Key header that matches
-    the ADMIN_API_KEY env var on Render. Everyone else is refused."""
+    """Guards rule/fact management. Allowed: (a) a signed-in Reviewer, or (b) the secret
+    X-Admin-Key header matching ADMIN_API_KEY on Render. Everyone else is refused."""
     admin_key = os.getenv("ADMIN_API_KEY", "").strip()
     sent_key = request.headers.get("x-admin-key", "")
     if admin_key and hmac.compare_digest(sent_key.encode(), admin_key.encode()):
-        return {"role": "admin"}
-    if credentials is not None:
-        return resolve_actor(credentials, None)
+        return {"id": None, "email": "admin-key", "role": "admin"}
+    if credentials is not None or REQUIRE_AUTH:
+        actor = get_actor(credentials, None)
+        if actor["role"].lower() not in KNOWLEDGE_ROLES:
+            raise HTTPException(status_code=403, detail="Only Reviewers can change rules and facts")
+        return actor
     raise HTTPException(status_code=401, detail="Admin access required")
+
+
+def _own_or_staff(actor, sub):
+    """Creators can only open their own submissions; Managers and Reviewers see all."""
+    if actor["id"] and actor["role"].lower() == "creator" and sub.get("creator_id") and sub["creator_id"] != actor["id"]:
+        raise HTTPException(status_code=403, detail="This submission belongs to another creator.")
+
+
+def safe_insert(db, table, record, optional=()):
+    """Insert a row; if the database does not have the new Round 3 columns yet
+    (migration not run), retry without them so the app keeps working."""
+    try:
+        return db.table(table).insert(record).execute()
+    except Exception:
+        if not optional:
+            raise
+        slim = {k: v for k, v in record.items() if k not in optional}
+        if slim == record:
+            raise
+        logger.warning("insert into %s retried without %s (run schema_round3.sql)", table, optional)
+        return db.table(table).insert(slim).execute()
+
+
+def log_audit(db, sub_id, actor, action, detail, when=None):
+    rec = {"id": str(uuid.uuid4()), "submission_id": sub_id, "role": actor["role"], "action": action,
+           "detail": detail, "actor_id": actor["id"], "actor_email": actor["email"]}
+    if when:
+        rec["created_at"] = when
+    safe_insert(db, "audit_log", rec, optional=("actor_id", "actor_email"))
 
 
 # CORS: only our own frontend may call the API from a browser.
@@ -131,7 +196,7 @@ def get_workspace():
         return {"workspace": WORKSPACE_DATA, "rules": RULES_SEED, "facts": FACTS_SEED, "sample_content": SAMPLE_CONTENT_SEED}
 
 @app.post("/api/submissions")
-def create_submission(req: SubmissionCreateRequest):
+def create_submission(req: SubmissionCreateRequest, actor=Depends(creator_dep)):
     db = get_db()
     
     # Bug 3 Fix: Fetch live rules and facts from the database
@@ -156,11 +221,12 @@ def create_submission(req: SubmissionCreateRequest):
     now_iso = datetime.utcnow().isoformat()
     
     try:
-        db.table("submissions").insert({
-            "id": sub_id, "title": req.title, "channel": req.channel, 
-            "audience": req.audience, "creator": req.creator, 
+        safe_insert(db, "submissions", {
+            "id": sub_id, "title": req.title, "channel": req.channel,
+            "audience": req.audience, "creator": actor["email"] or req.creator,
+            "creator_id": actor["id"],
             "status": status, "current_version": 1
-        }).execute()
+        }, optional=("creator_id",))
         
         db.table("versions").insert({
             "id": version_id, "submission_id": sub_id, 
@@ -182,12 +248,8 @@ def create_submission(req: SubmissionCreateRequest):
             db.table("findings").insert(f_record).execute()
             db_findings.append(f_record)
             
-        db.table("audit_log").insert({
-            "id": str(uuid.uuid4()), "submission_id": sub_id,
-            "role": req.creator, "action": "created_submission",
-            "detail": "Submitted version 1 for review",
-            "created_at": now_iso
-        }).execute()
+        log_audit(db, sub_id, actor if actor["id"] else {**actor, "role": req.creator},
+                  "created_submission", "Submitted version 1 for review", now_iso)
         
         return {
             "submission_id": sub_id, "version_id": version_id,
@@ -199,17 +261,20 @@ def create_submission(req: SubmissionCreateRequest):
         raise HTTPException(status_code=500, detail="Could not save the submission. Please try again.")
 
 @app.get("/api/submissions")
-def list_submissions():
+def list_submissions(actor=Depends(actor_dep)):
     db = get_db()
-    res = db.table("submissions").select("*").order("id", desc=True).execute()
-    return res.data
+    q = db.table("submissions").select("*")
+    if actor["id"] and actor["role"].lower() == "creator":
+        q = q.eq("creator_id", actor["id"])       # creators only see their own posts
+    return q.order("id", desc=True).execute().data
 
 @app.get("/api/submissions/{sub_id}")
-def get_submission_detail(sub_id: str):
+def get_submission_detail(sub_id: str, actor=Depends(actor_dep)):
     db = get_db()
     sub_res = db.table("submissions").select("*").eq("id", sub_id).execute()
     if not sub_res.data:
         raise HTTPException(status_code=404, detail="Submission not found")
+    _own_or_staff(actor, sub_res.data[0])
     
     versions_res = db.table("versions").select("*").eq("submission_id", sub_id).order("version_no", desc=True).execute()
     versions = versions_res.data
@@ -234,46 +299,48 @@ def get_submission_detail(sub_id: str):
     }
 
 @app.post("/api/findings/{finding_id}/decision")
-def record_finding_decision(finding_id: str, req: FindingDecisionRequest):
+def record_finding_decision(finding_id: str, req: FindingDecisionRequest, actor=Depends(creator_dep)):
     db = get_db()
     if req.action == "reject" and not req.reason:
         raise HTTPException(status_code=400, detail="A reason is required when rejecting a finding.")
-        
+
     f_res = db.table("findings").select("version_id").eq("id", finding_id).execute()
     if not f_res.data:
         raise HTTPException(status_code=404, detail="Finding not found")
-        
-    update_data = {"decision": req.action, "decision_reason": req.reason if req.action == "reject" else None}
-    if req.action == "edit" and req.edited_text:
-        update_data["fix_1"] = req.edited_text
-        
-    db.table("findings").update(update_data).eq("id", finding_id).execute()
-    
+
     version_id = f_res.data[0]["version_id"]
     v_res = db.table("versions").select("submission_id").eq("id", version_id).execute()
     sub_id = v_res.data[0]["submission_id"]
-    
+    sub_row = db.table("submissions").select("*").eq("id", sub_id).execute().data
+    if sub_row:
+        _own_or_staff(actor, sub_row[0])
+
+    update_data = {"decision": req.action, "decision_reason": req.reason if req.action == "reject" else None}
+    if req.action == "edit" and req.edited_text:
+        update_data["fix_1"] = req.edited_text
+
+    db.table("findings").update(update_data).eq("id", finding_id).execute()
+
     all_findings = db.table("findings").select("*").eq("version_id", version_id).execute()
     new_status = calculate_status(all_findings.data)
-    
+
     db.table("submissions").update({"status": new_status}).eq("id", sub_id).execute()
-    db.table("audit_log").insert({
-        "id": str(uuid.uuid4()), "submission_id": sub_id,
-        "role": "Creator", "action": f"finding_{req.action}",
-        "detail": f"Decided '{req.action}' on finding {finding_id}",
-        "created_at": datetime.utcnow().isoformat()
-    }).execute()
-    
+    log_audit(db, sub_id, actor, f"finding_{req.action}", f"Decided '{req.action}' on finding {finding_id}",
+              datetime.utcnow().isoformat())
+
     return {"status": "success", "new_submission_status": new_status}
 
 @app.post("/api/submissions/{sub_id}/resubmit")
-def resubmit_content(sub_id: str, req: ResubmitRequest):
+def resubmit_content(sub_id: str, req: ResubmitRequest, actor=Depends(creator_dep)):
     db = get_db()
     sub_res = db.table("submissions").select("*").eq("id", sub_id).execute()
     if not sub_res.data:
         raise HTTPException(status_code=404, detail="Submission not found")
     submission = sub_res.data[0]
-    
+    _own_or_staff(actor, submission)
+    if submission.get("channel") == "visual_asset":
+        raise HTTPException(status_code=400, detail="Image submissions cannot be re-analysed from text. Upload the corrected image as a new submission.")
+
     # Bug 3 Fix: Fetch live rules and facts from the database for resubmissions
     rules_res = db.table("rules").select("*").execute()
     facts_res = db.table("facts").select("*").execute()
@@ -321,12 +388,7 @@ def resubmit_content(sub_id: str, req: ResubmitRequest):
             "status": new_status
         }).eq("id", sub_id).execute()
         
-        db.table("audit_log").insert({
-            "id": str(uuid.uuid4()), "submission_id": sub_id,
-            "role": "Creator", "action": "resubmitted",
-            "detail": f"Submitted version {new_version_no}",
-            "created_at": now_iso
-        }).execute()
+        log_audit(db, sub_id, actor, "resubmitted", f"Submitted version {new_version_no}", now_iso)
         
         return {
             "submission_id": sub_id, "new_version_id": new_version_id,
@@ -406,12 +468,7 @@ def approve_submission(
     if crypto_seal:
         log_detail += f" | SHA-256 Seal: {crypto_seal}"
 
-    db.table("audit_log").insert({
-        "submission_id": subid,
-        "role": actor["role"],
-        "action": f"{req.decision}_v{active_version}",
-        "detail": log_detail,
-    }).execute()
+    log_audit(db, subid, actor, f"{req.decision}_v{active_version}", log_detail)
 
     return {
         "message": "Decision recorded",
@@ -494,22 +551,201 @@ def update_rule(rule_id: str, req: RuleUpdateRequest, admin=Depends(require_admi
     clear_pipeline_cache()
     return {"status": "success", "rule_id": rule_id, "new_version": update_data["version"]}
 
+FACT_OPTIONAL_COLS = ("version", "topic", "updated_by", "updated_at")
+
+
+def _all_facts(db):
+    return db.table("facts").select("*").execute().data or []
+
+
 @app.post("/api/facts")
 def create_fact(req: FactCreateRequest, admin=Depends(require_admin)):
-    """Reviewer creates a new fact (with optional expiry)."""
+    """Reviewer creates a new fact (with optional validity dates). Returns conflict warnings."""
     db = get_db()
-    db.table("facts").insert(req.model_dump()).execute()
+    who = admin.get("email") or admin["role"]
+    record = req.model_dump()
+    record.update({"version": 1, "updated_by": who})
+    safe_insert(db, "facts", record, optional=FACT_OPTIONAL_COLS)
     clear_pipeline_cache()
-    return {"status": "success", "fact_id": req.id}
+    warnings = [c["message"] for c in facts_lifecycle.detect_conflicts(_all_facts(db), only_for=req.id)]
+    return {"status": "success", "fact_id": req.id, "warnings": warnings}
+
 
 @app.put("/api/facts/{fact_id}")
 def update_fact(fact_id: str, req: FactUpdateRequest, admin=Depends(require_admin)):
-    """Reviewer updates an existing fact."""
+    """Reviewer edits a fact. The old version is saved to fact_versions first, so nothing is lost."""
     db = get_db()
-    update_data = {k: v for k, v in req.model_dump().items() if v is not None}
-    db.table("facts").update(update_data).eq("id", fact_id).execute()
+    existing = db.table("facts").select("*").eq("id", fact_id).execute().data
+    if not existing:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    cur = existing[0]
+    who = admin.get("email") or admin["role"]
+
+    data = req.model_dump()
+    note = data.pop("change_note", None)
+    clear_expiry = data.pop("clear_expiry", False)
+    update = {k: v for k, v in data.items() if v is not None}
+    if clear_expiry:
+        update["expires_on"] = None
+    if not update:
+        raise HTTPException(status_code=400, detail="Nothing to change.")
+
+    new_from = update.get("valid_from", cur.get("valid_from"))
+    new_exp = update.get("expires_on", cur.get("expires_on"))
+    d_from, d_exp = facts_lifecycle.parse_date(new_from), facts_lifecycle.parse_date(new_exp)
+    if d_from and d_exp and d_exp < d_from:
+        raise HTTPException(status_code=400, detail="Expiry date cannot be before the valid-from date.")
+
+    old_version = int(cur.get("version") or 1)
+    try:  # keep the old version (history)
+        db.table("fact_versions").insert({
+            "id": str(uuid.uuid4()), "fact_id": fact_id, "version": old_version,
+            "approved_text": cur.get("approved_text"), "source": cur.get("source"), "owner": cur.get("owner"),
+            "valid_from": cur.get("valid_from"), "expires_on": cur.get("expires_on"),
+            "status": cur.get("status"), "topic": cur.get("topic"),
+            "changed_by": who, "change_note": note,
+        }).execute()
+    except Exception:
+        logger.exception("could not archive fact version (run schema_round3.sql)")
+
+    update.update({"version": old_version + 1, "updated_by": who, "updated_at": datetime.utcnow().isoformat()})
+    try:
+        db.table("facts").update(update).eq("id", fact_id).execute()
+    except Exception:
+        slim = {k: v for k, v in update.items() if k not in FACT_OPTIONAL_COLS}
+        db.table("facts").update(slim).eq("id", fact_id).execute()
     clear_pipeline_cache()
-    return {"status": "success", "fact_id": fact_id}
+
+    warnings = [c["message"] for c in facts_lifecycle.detect_conflicts(_all_facts(db), only_for=fact_id)]
+    return {"status": "success", "fact_id": fact_id, "new_version": old_version + 1, "warnings": warnings}
+
+
+@app.get("/api/facts/conflicts")
+def list_fact_conflicts(actor=Depends(actor_dep)):
+    return {"conflicts": facts_lifecycle.detect_conflicts(_all_facts(get_db()))}
+
+
+@app.get("/api/facts/{fact_id}/versions")
+def fact_versions(fact_id: str, actor=Depends(actor_dep)):
+    db = get_db()
+    cur = db.table("facts").select("*").eq("id", fact_id).execute().data
+    if not cur:
+        raise HTTPException(status_code=404, detail="Fact not found")
+    try:
+        old = db.table("fact_versions").select("*").eq("fact_id", fact_id).order("version", desc=True).execute().data or []
+    except Exception:
+        old = []
+    return {"current": cur[0], "history": old}
+
+
+@app.get("/api/alerts/expiring")
+def expiring_alerts(actor=Depends(actor_dep)):
+    """Facts that are expired or expire within 30 days, and the approved posts that repeat them."""
+    db = get_db()
+    facts = _all_facts(db)
+    subs = db.table("submissions").select("id,title,current_version,status").eq("status", "approved").execute().data or []
+    posts = []
+    if subs:
+        cur = {x["id"]: x["current_version"] for x in subs}
+        titles = {x["id"]: x["title"] for x in subs}
+        vers = db.table("versions").select("submission_id,version_no,body").in_("submission_id", list(cur)).execute().data or []
+        for v in vers:
+            if v["version_no"] == cur.get(v["submission_id"]):
+                posts.append({"id": v["submission_id"], "title": titles.get(v["submission_id"]), "body": v["body"]})
+    today = date.today()
+    return {
+        "as_of": today.isoformat(),
+        "window_days": facts_lifecycle.EXPIRING_WINDOW_DAYS,
+        "alerts": facts_lifecycle.expiry_alerts(facts, posts, today),
+        "conflicts": facts_lifecycle.detect_conflicts(facts, today),
+    }
+
+
+# --- Round 3: sign-in -------------------------------------------------------
+
+def _session_payload(session):
+    rows = get_db().table("user_roles").select("role").eq("user_id", session["user_id"]).execute().data or []
+    if not rows:
+        raise HTTPException(status_code=403, detail="This account has no role assigned.")
+    return {"access_token": session["access_token"], "expires_in": session["expires_in"],
+            "email": session["email"], "role": str(rows[0]["role"]).strip().capitalize()}
+
+
+@app.post("/api/auth/login")
+def auth_login(req: LoginRequest):
+    try:
+        return _session_payload(auth_service.sign_in_password(req.email.strip(), req.password))
+    except auth_service.AuthError as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+@app.post("/api/auth/demo")
+def auth_demo(req: DemoLoginRequest):
+    """One-click sign-in to a real demo account (Creator / Manager / Reviewer)."""
+    try:
+        return _session_payload(auth_service.demo_sign_in(req.role))
+    except auth_service.AuthError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+
+@app.get("/api/auth/me")
+def auth_me(actor=Depends(actor_dep)):
+    return {"email": actor["email"], "role": actor["role"]}
+
+
+# --- Round 3: visual compliance & accessibility ------------------------------
+
+@app.post("/api/visual-review")
+async def visual_review(
+    file: UploadFile = File(...),
+    alt_text: str = Form(default=""),
+    title: str = Form(default="Image asset"),
+    actor=Depends(creator_dep),
+):
+    data = await file.read(visual.MAX_BYTES + 1)
+    alt_text = alt_text.strip()[:500]
+    title = (title.strip() or "Image asset")[:200]
+    try:
+        result = visual.analyze_image(data, alt_text)
+    except visual.VisualError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    db = get_db()
+    rules = {r["id"]: r for r in (db.table("rules").select("*").execute().data or [])}
+    findings = []
+    for f in result["findings"]:
+        rule = rules.get(f["rule"])
+        findings.append({
+            "id": str(uuid.uuid4()), "category": f["category"], "severity": f["severity"],
+            "confidence": f["confidence"], "excerpt": f["excerpt"], "rule_or_fact_id": f["rule"],
+            "source_ref": rule["text"] if rule else None, "explanation": f["explanation"],
+            "fix_1": f["fix_1"], "fix_2": f["fix_2"],
+            "needs_human": bool(f.get("needs_human")) or rule is None,   # no source in the rules table -> human check
+            "evidence_valid": rule is not None, "decision": "pending",
+        })
+    status = calculate_status(findings, False)
+
+    sub_id, version_id = str(uuid.uuid4()), str(uuid.uuid4())
+    now_iso = datetime.utcnow().isoformat()
+    body = visual.describe_for_record(file.filename or "image", alt_text, result["metrics"])
+    try:
+        safe_insert(db, "submissions", {
+            "id": sub_id, "title": title, "channel": "visual_asset", "audience": "general",
+            "creator": actor["email"] or "Creator", "creator_id": actor["id"],
+            "status": status, "current_version": 1,
+        }, optional=("creator_id",))
+        db.table("versions").insert({"id": version_id, "submission_id": sub_id, "version_no": 1,
+                                     "body": body, "created_at": now_iso}).execute()
+        for f in findings:
+            f["version_id"] = version_id
+            db.table("findings").insert(f).execute()
+        log_audit(db, sub_id, actor, "created_visual_submission", "Image uploaded for visual compliance review", now_iso)
+        return {"submission_id": sub_id, "version_id": version_id, "status": status,
+                "metrics": result["metrics"], "findings": findings}
+    except Exception:
+        logger.exception("visual_review failed")
+        raise HTTPException(status_code=500, detail="Could not save the image review. Please try again.")
+
 
 @app.post("/api/rules/import")
 async def import_rules_csv(file: UploadFile = File(...), admin=Depends(require_admin)):
