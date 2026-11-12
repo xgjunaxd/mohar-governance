@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Skeleton from '../components/Skeleton';
 import { Link } from 'react-router-dom';
 import { getDashboard, getAlerts } from '../services/api';
 
@@ -64,15 +65,7 @@ export default function Dashboard() {
     getAlerts().then(setAlerts).catch((e) => setAlertError(e.message));
   }, []);
 
-  if (loading) {
-    return (
-      <main>
-        <div className="glass hero sheen hoverlift">
-          <h2>Loading Analytics...</h2>
-        </div>
-      </main>
-    );
-  }
+  if (loading) return <Skeleton rows={4} label="Loading analytics" />;
 
   if (error) {
     return (
