@@ -55,6 +55,7 @@ def _int_env(name, default):
 
 
 AI_PATH = re.compile(r"^/api/submissions(/[^/]+/resubmit)?$")
+AUTH_PATH = re.compile(r"^/api/auth/(login|demo)$")
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -65,6 +66,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
       RATE_LIMIT_WRITE_PER_MIN = 30   other writes per IP per minute
       RATE_LIMIT_READ_PER_MIN  = 240  reads per IP per minute
       RATE_LIMIT_AI_GLOBAL_HR  = 300  AI reviews for ALL visitors per hour
+      RATE_LIMIT_AUTH_PER_MIN  = 10   sign-in attempts per IP per minute
     """
 
     def __init__(self, app):
@@ -75,6 +77,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.write_ip = _int_env("RATE_LIMIT_WRITE_PER_MIN", 30)
         self.read_ip = _int_env("RATE_LIMIT_READ_PER_MIN", 240)
         self.ai_global = _int_env("RATE_LIMIT_AI_GLOBAL_HR", 300)
+        self.auth_ip = _int_env("RATE_LIMIT_AUTH_PER_MIN", 10)
 
     @staticmethod
     def client_ip(request):
@@ -98,7 +101,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         ip = self.client_ip(request)
         checks = []
-        if method == "POST" and AI_PATH.match(path):
+        if method == "POST" and AUTH_PATH.match(path):
+            checks.append((f"auth:{ip}", self.auth_ip, 60))
+        elif method == "POST" and AI_PATH.match(path):
             checks.append((f"ai:{ip}", self.ai_ip, 60))
             checks.append(("ai:global", self.ai_global, 3600))
         elif method in ("POST", "PUT", "DELETE", "PATCH"):
