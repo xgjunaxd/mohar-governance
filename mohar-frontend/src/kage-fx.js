@@ -23,7 +23,7 @@
       if (p === lastPath) return;
       lastPath = p;
       const hit = chapters.find(([re]) => re.test(p));
-      root.style.setProperty('--chapter', '"' + (hit ? hit[1] : chapters[0][1]) + '"');
+      root.style.setProperty('--chapter', '"' + (hit ? hit[1] : '404 — NOT FOUND') + '"');
       window.scrollTo({ top: 0 });
     }
 
@@ -64,10 +64,17 @@
       });
     }
     // React swaps content when you change pages or data loads: watch for it
-    new MutationObserver(() => { updateChapter(); scan(); }).observe(
+    // Unique browser-tab title per page, taken from the page's own heading
+    function updateTitle() {
+      const h1 = document.querySelector('main h1');
+      const t = h1 ? h1.textContent.trim() : '';
+      const next = t ? t + ' – Mohar' : 'Mohar – Brand Governance';
+      if (document.title !== next) document.title = next;
+    }
+    new MutationObserver(() => { updateChapter(); scan(); updateTitle(); }).observe(
       document.getElementById('root'), { childList: true, subtree: true }
     );
-    updateChapter(); scan();
+    updateChapter(); scan(); updateTitle();
     // safety net: never leave anything hidden
     setTimeout(() => document.querySelectorAll('main .glass:not(.in), main .sec:not(.in)').forEach((el) => {
       const r = el.getBoundingClientRect();
