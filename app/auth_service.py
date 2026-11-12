@@ -8,11 +8,14 @@ Demo accounts are REAL Supabase users with real roles (created once with
 scripts/create_demo_users.py). The "Sign in as ..." buttons just sign in to
 those accounts. Turn them off with ALLOW_DEMO_LOGIN=false.
 """
+import logging
 import os
 
 from supabase import create_client
 
 from app.db import SUPABASE_URL, SUPABASE_KEY
+
+logger = logging.getLogger("mohar.auth")
 
 DEMO_EMAILS = {
     "Creator": "creator@mohar-demo.app",
@@ -36,7 +39,9 @@ def sign_in_password(email: str, password: str) -> dict:
     client = create_client(SUPABASE_URL, SUPABASE_KEY)  # separate client: never reused for table queries
     try:
         res = client.auth.sign_in_with_password({"email": email, "password": password})
-    except Exception:
+    except Exception as exc:
+        # The real reason goes to the server log only (never to the browser, never the password).
+        logger.warning("sign-in failed for %s: %s: %s", email, type(exc).__name__, str(exc)[:200])
         raise AuthError("Wrong email or password.")
     if res is None or res.session is None or res.user is None:
         raise AuthError("Wrong email or password.")
