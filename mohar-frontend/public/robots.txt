@@ -1,1 +1,5 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mohar-governance-snowy.vercel.app/sitemap.xml
 
