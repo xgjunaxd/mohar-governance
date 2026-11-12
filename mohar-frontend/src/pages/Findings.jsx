@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Skeleton from '../components/Skeleton';
 import { useParams } from 'react-router-dom';
 import { getSubmissionDetail, recordDecision, resubmitPost } from '../services/api';
 import { useRole } from '../context/RoleContext';
@@ -49,7 +50,7 @@ export default function Findings() {
     if (ok) setEditorText((prev) => applyFixToText(prev, finding.excerpt, fixText));
   };
 
-  if (loading || !data) return <main><div className="glass hero sheen"><h2>Loading analysis...</h2></div></main>;
+  if (loading || !data) return <Skeleton rows={3} label="Loading analysis" />;
   const { submission, current_findings } = data;
   const isCreator = currentRole === 'Creator';
   const isVisual = submission.channel === 'visual_asset';
