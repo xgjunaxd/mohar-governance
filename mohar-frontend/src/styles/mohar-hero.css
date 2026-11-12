@@ -1,0 +1,92 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap");
+
+.mh-root{position:relative;min-height:100vh;background:#07080a;color:#fff;font-family:Inter,system-ui,sans-serif;overflow:hidden;isolation:isolate}
+.mh-root *{box-sizing:border-box}
+
+/* ---------- AURORA ---------- */
+.mh-aurora{position:absolute;inset:0;z-index:-1;background:#07080a;overflow:hidden}
+.mh-blade{position:absolute;width:42vw;height:150vh;border-radius:50%;filter:blur(70px);mix-blend-mode:screen;opacity:.7;
+  background:linear-gradient(180deg,rgba(255,179,71,0) 0%,#ffb347 20%,#ff6b4a 48%,#ff2f3a 72%,rgba(255,47,58,0) 100%);
+  transform:translate3d(0,0,0) rotate(var(--r));
+  animation:mh-drift var(--d) ease-in-out infinite alternate,mh-breathe var(--b) ease-in-out infinite;will-change:transform,opacity}
+.mh-blade.b1{--r:28deg;--dx:6vw;--dy:-4vh;--d:19s;--b:15s;left:-8vw;top:-40vh}
+.mh-blade.b2{--r:34deg;--dx:-5vw;--dy:5vh;--d:22s;--b:17s;left:24vw;top:-55vh;width:30vw;opacity:.55}
+.mh-blade.b3{--r:24deg;--dx:7vw;--dy:3vh;--d:16s;--b:21s;left:52vw;top:-45vh}
+.mh-blade.b4{--r:38deg;--dx:-6vw;--dy:-5vh;--d:20s;--b:18s;left:78vw;top:-30vh;width:28vw;opacity:.5}
+@keyframes mh-drift{
+  0%{transform:translate3d(0,0,0) rotate(var(--r)) scale(1)}
+  100%{transform:translate3d(var(--dx),var(--dy),0) rotate(calc(var(--r) + 6deg)) scale(1.08)}}
+@keyframes mh-breathe{0%,100%{opacity:.75}50%{opacity:.35}} /* 0% = full bloom */
+.mh-grain{position:absolute;inset:0;opacity:.18;mix-blend-mode:overlay;pointer-events:none;
+  background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+.mh-vignette{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 40%,rgba(7,8,10,0) 30%,rgba(7,8,10,.85) 100%)}
+
+/* ---------- NAV ---------- */
+.mh-nav{position:relative;z-index:5;width:min(920px,calc(100% - 32px));margin:20px auto 0;padding:8px 8px 8px 16px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;border-radius:999px;
+  background:rgba(14,15,18,.6);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border:1px solid rgba(255,255,255,.08);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.mh-brand{display:flex;align-items:center;gap:8px;font-weight:600;font-size:15px;color:#fff;text-decoration:none}
+.mh-links{display:flex;gap:24px}
+.mh-links a,.mh-login{color:#9c9c9d;font-size:14px;font-weight:500;text-decoration:none;transition:color .2s}
+.mh-links a:hover,.mh-login:hover{color:#fff}
+.mh-navr{display:flex;align-items:center;gap:16px}
+.mh-pill-btn{display:inline-flex;align-items:center;gap:6px;background:#e6e6e6;color:#2f3031;font-size:13px;font-weight:500;
+  padding:7px 14px;border-radius:999px;text-decoration:none}
+
+/* ---------- HERO ---------- */
+.mh-hero{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding:72px 20px 40px}
+.mh-eyebrow{font-size:13px;color:#cfcfd1;padding:6px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);margin-bottom:28px}
+.mh-h1{font-family:Inter,system-ui,sans-serif;font-size:64px!important;font-weight:600!important;line-height:1.1!important;letter-spacing:-.02em;color:#fff;margin:0;max-width:820px}
+.mh-accent{background:linear-gradient(90deg,#ffb347,#ff6b4a 50%,#ff2f3a);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.mh-sub{font-size:18px;font-weight:400;letter-spacing:.2px;color:rgba(255,255,255,.7);max-width:640px;margin:22px 0 0;line-height:1.55}
+.mh-cta{display:flex;gap:14px;margin-top:34px;flex-wrap:wrap;justify-content:center}
+.mh-key{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border-radius:8px;border:0;cursor:pointer;
+  background:#e6e6e6;color:#2f3031;font:500 14px Inter,sans-serif;text-decoration:none;
+  box-shadow:0 0 0 2px #000,0 0 14px rgba(255,255,255,.19),inset 0 1px 0 rgba(255,255,255,.9),inset 0 -2px 0 rgba(0,0,0,.18);
+  transition:transform .12s,box-shadow .12s}
+.mh-key:hover{transform:translateY(-1px)}
+.mh-key:active{transform:translateY(1px);box-shadow:0 0 0 2px #000,0 0 8px rgba(255,255,255,.15),inset 0 1px 0 rgba(255,255,255,.7),inset 0 -1px 0 rgba(0,0,0,.2)}
+.mh-mono{font-family:"Geist Mono",ui-monospace,monospace}
+.mh-caption{font-size:12px;color:#9c9c9d;margin-top:16px}
+
+/* ---------- COMMAND BAR ---------- */
+.mh-cmd{position:relative;z-index:2;width:min(640px,calc(100% - 32px));margin:48px auto 0;border-radius:14px;overflow:hidden;text-align:left;
+  background:rgba(12,13,16,.72);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,.09);box-shadow:0 30px 80px -20px rgba(255,70,60,.35),inset 0 1px 0 rgba(255,255,255,.06)}
+.mh-cmd-top{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.07)}
+.mh-cmd-q{flex:1;font-size:15px;color:#fff}
+.mh-caret{display:inline-block;width:2px;height:16px;margin-left:2px;vertical-align:-3px;background:#ff6b4a;animation:mh-blink 1.05s steps(1) infinite}
+@keyframes mh-blink{50%{opacity:0}}
+.mh-mode{font-size:11px;color:#9c9c9d;border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:3px 8px}
+.mh-rows{padding:6px}
+.mh-row{display:flex;align-items:center;gap:12px;padding:10px;border-radius:8px;font-size:14px;color:#d6d6d8}
+.mh-row.active{background:linear-gradient(90deg,rgba(255,47,58,.22),rgba(255,107,74,.1));box-shadow:inset 0 0 0 1px rgba(255,107,74,.25);color:#fff}
+.mh-row svg{flex:none;color:#9c9c9d}.mh-row.active svg{color:#ff8a66}
+.mh-row .arg{color:#9c9c9d;font-size:12px;margin-left:6px}
+.mh-chip{margin-left:auto;font-size:11px;color:#b8b8ba;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);border-radius:6px;padding:2px 7px}
+.mh-foot{display:flex;justify-content:space-between;padding:10px 16px;border-top:1px solid rgba(255,255,255,.07);font-size:11px;color:#77777a}
+
+/* ---------- BADGE + GHOST ---------- */
+.mh-ghost{display:inline-flex;align-items:center;gap:6px;margin:36px auto 90px;padding:9px 18px;border-radius:999px;color:#9c9c9d;
+  border:1px solid rgba(255,255,255,.14);background:transparent;font-size:14px;text-decoration:none;transition:color .2s,border-color .2s}
+.mh-ghost:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+.mh-ghost-wrap{display:flex;justify-content:center;position:relative;z-index:2}
+.mh-badge{position:absolute;right:24px;bottom:24px;z-index:3;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;
+  background:rgba(12,13,16,.8);border:1px solid rgba(255,255,255,.09);backdrop-filter:blur(10px)}
+.mh-badge b{display:block;font-size:12px;font-weight:600}.mh-badge span{font-size:11px;color:#9c9c9d}
+.mh-ph{width:28px;height:28px;border-radius:50%;background:#ff6b4a;color:#07080a;display:grid;place-items:center;font-weight:700;font-size:14px}
+
+/* ---------- RESPONSIVE / MOTION ---------- */
+@media(max-width:760px){
+  .mh-links{display:none}
+  .mh-h1{font-size:38px!important}
+  .mh-sub{font-size:16px}
+  .mh-hero{padding-top:48px}
+  .mh-cta{flex-direction:column;width:100%;max-width:340px}
+  .mh-key{justify-content:center;width:100%}
+  .mh-badge{display:none}
+  .mh-blade{width:70vw}
+}
+@media(prefers-reduced-motion:reduce){.mh-blade,.mh-caret{animation:none}}
