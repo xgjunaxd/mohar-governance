@@ -829,7 +829,7 @@ def submit_contact_form(req: ContactForm, request: Request):
 
     # 3. Send Email via Resend
     resend_key = os.getenv("RESEND_API_KEY")
-   to_email = "xgjunaxd@gmail.com"
+    to_email = "xgjunaxd@gmail.com"
     from_email = "onboarding@resend.dev"
     
     if resend_key and to_email:
@@ -849,6 +849,5 @@ def submit_contact_form(req: ContactForm, request: Request):
             urllib.request.urlopen(req_obj)
         except Exception as e:
             logger.error(f"Resend API failed: {e}")
-            # Graceful fallback: fails silently so the database still saves
-    
+            
     return {"status": "success", "message": "Message saved and sent!"}
