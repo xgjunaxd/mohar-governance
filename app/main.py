@@ -789,4 +789,66 @@ async def import_rules_csv(file: UploadFile = File(...), admin=Depends(require_a
             skipped += 1
 
     clear_pipeline_cache()
+    return {"status": "success", "imported": count, "skipped": skipped}  
+    clear_pipeline_cache()
     return {"status": "success", "imported": count, "skipped": skipped}
+
+
+# --- Contact Form & Resend Integration ---
+from pydantic import BaseModel
+import hashlib
+import json
+import urllib.request
+
+class ContactForm(BaseModel):
+    name: str
+    email: str
+    message: str
+
+@app.post("/contact")
+def submit_contact_form(req: ContactForm, request: Request):
+    db = get_db()
+    
+    # 1. IP Tracking & Rate Limiting (Protects from spam)
+    client_ip = request.client.host if request.client else "unknown"
+    salt = os.getenv("IP_HASH_SALT", "mohar2026")
+    ip_hash = hashlib.sha256((client_ip + salt).encode("utf-8")).hexdigest()
+    
+    # Check if this IP has sent too many messages
+    recent = db.table("contact_messages").select("id").eq("ip_hash", ip_hash).execute()
+    if recent.data and len(recent.data) >= 3:
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please try again later.")
+
+    # 2. Save securely to Supabase
+    db.table("contact_messages").insert({
+        "name": req.name,
+        "email": req.email,
+        "message": req.message,
+        "ip_hash": ip_hash
+    }).execute()
+
+    # 3. Send Email via Resend
+    resend_key = os.getenv("RESEND_API_KEY")
+    to_email = os.getenv("CONTACT_TO_EMAIL")
+    from_email = os.getenv("CONTACT_FROM_EMAIL", "Mohar <onboarding@resend.dev>")
+    
+    if resend_key and to_email:
+        try:
+            url = "https://api.resend.com/emails"
+            headers = {
+                "Authorization": f"Bearer {resend_key}",
+                "Content-Type": "application/json"
+            }
+            data = {
+                "from": from_email,
+                "to": to_email,
+                "subject": f"New Message from {req.name}",
+                "html": f"<p><strong>Name:</strong> {req.name}</p><p><strong>Email:</strong> {req.email}</p><p><strong>Message:</strong><br>{req.message}</p>"
+            }
+            req_obj = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers)
+            urllib.request.urlopen(req_obj)
+        except Exception as e:
+            logger.error(f"Resend API failed: {e}")
+            # Graceful fallback: fails silently so the database still saves
+    
+    return {"status": "success", "message": "Message saved and sent!"}
