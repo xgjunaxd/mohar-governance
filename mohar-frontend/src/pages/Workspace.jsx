@@ -91,6 +91,70 @@ export default function Workspace() {
           </article>
         ))}
       </div>
+
+      {/* --- New Contact Form Section --- */}
+      <h2 className="sec" style={{ marginTop: '40px' }}>
+        Contact Governance Team
+      </h2>
+      <div className="glass pad" style={{ maxWidth: '500px', marginBottom: '40px' }}>
+        <form 
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const formData = {
+              name: e.target.name.value,
+              email: e.target.email.value,
+              message: e.target.message.value
+            };
+            
+            try {
+              const response = await fetch(`${import.meta.env.VITE_API_URL || 'https://mohar-api.onrender.com'}/contact`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(formData)
+              });
+              
+              if (response.ok) {
+                alert("Message Sent Successfully!");
+                e.target.reset(); // Clears the form after success
+              } else {
+                alert("Failed to send. Is the backend awake?");
+              }
+            } catch (err) {
+              alert("Network error. Could not reach the server.");
+            }
+          }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}
+        >
+          <input 
+            type="text" 
+            name="name" 
+            placeholder="Your Name" 
+            required 
+            style={{ padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'inherit', fontFamily: 'inherit' }} 
+          />
+          <input 
+            type="email" 
+            name="email" 
+            placeholder="Your Email" 
+            required 
+            style={{ padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'inherit', fontFamily: 'inherit' }} 
+          />
+          <textarea 
+            name="message" 
+            placeholder="Your Message..." 
+            required 
+            rows="4" 
+            style={{ padding: '12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.05)', color: 'inherit', fontFamily: 'inherit', resize: 'vertical' }}
+          ></textarea>
+          <button 
+            type="submit" 
+            className="btn primary"
+            style={{ padding: '12px', width: '100%', fontSize: '1rem' }}
+          >
+            Send Message
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
