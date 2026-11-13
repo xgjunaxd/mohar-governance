@@ -829,8 +829,8 @@ def submit_contact_form(req: ContactForm, request: Request):
 
     # 3. Send Email via Resend
     resend_key = os.getenv("RESEND_API_KEY")
-    to_email = os.getenv("CONTACT_TO_EMAIL")
-    from_email = os.getenv("CONTACT_FROM_EMAIL", "Mohar <onboarding@resend.dev>")
+   to_email = "xgjunaxd@gmail.com"
+    from_email = "onboarding@resend.dev"
     
     if resend_key and to_email:
         try:
