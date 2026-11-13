@@ -10,12 +10,12 @@
 
     /* ---------- 1. Chapter label per page ---------- */
     const chapters = [
-      [/^\/$/, '01 — WORKSPACE · 工房'],
-      [/^\/submit/, '02 — SUBMIT · 提出'],
-      [/^\/findings/, '03 — FINDINGS · 検証'],
-      [/^\/queue/, '04 — APPROVALS · 承認'],
-      [/^\/dashboard/, '05 — DASHBOARD · 概観'],
-      [/^\/knowledge/, '06 — KNOWLEDGE · 知識'],
+      [/^\/$/, '01 — Workspace'],
+      [/^\/submit/, '02 — Submit'],
+      [/^\/findings/, '03 — Findings'],
+      [/^\/queue/, '04 — Approvals'],
+      [/^\/dashboard/, '05 — Dashboard'],
+      [/^\/knowledge/, '06 — Knowledge'],
     ];
     let lastPath = null;
     function updateChapter() {
@@ -23,7 +23,7 @@
       if (p === lastPath) return;
       lastPath = p;
       const hit = chapters.find(([re]) => re.test(p));
-      root.style.setProperty('--chapter', '"' + (hit ? hit[1] : '404 — NOT FOUND') + '"');
+      root.style.setProperty('--chapter', '"' + (hit ? hit[1] : '404 — Not found') + '"');
       window.scrollTo({ top: 0 });
     }
 
